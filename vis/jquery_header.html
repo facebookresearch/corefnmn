@@ -1,0 +1,65 @@
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
+<script type="text/JavaScript">
+$(document).ready(function(){
+	// Function to get the Max value in Array
+    Array.max = function( array ){
+        return Math.max.apply( Math, array );
+    };
+
+    // get all values
+    var counts= $('#heat-map-3 tbody td').not('.stats-title').map(function() {
+        return parseInt($(this).text());
+    }).get();
+	
+	// return max value
+	var max = Array.max(counts);
+	
+	xr = 255;
+    xg = 255;
+    xb = 255;
+   
+    yr = 243;
+    yg = 32;
+    yb = 117;
+
+    yr = 139;
+    yg = 0;
+    yb = 0;
+    n = 100;
+	
+	// add classes to cells based on nearest 10 value
+	$('#heat-map-3 tbody td').not('.stats-title').each(function(){
+		var val = parseInt($(this).text());
+		var pos = parseInt((Math.round((val/max)*100)).toFixed(0));
+		red = parseInt((xr + (( pos * (yr - xr)) / (n-1))).toFixed(0));
+		green = parseInt((xg + (( pos * (yg - xg)) / (n-1))).toFixed(0));
+		blue = parseInt((xb + (( pos * (yb - xb)) / (n-1))).toFixed(0));
+		clr = 'rgb('+red+','+green+','+blue+')';
+		$(this).css({backgroundColor:clr});
+	});
+});
+</script>
+
+<style type="text/css">
+body,html,div,blockquote,img,label,p,h1,h2,h3,h4,h5,h6,pre,ul,ol,li,dl,dt,dd,form,a,fieldset,input,th,td{border:0;outline:none;margin:0;padding:0;}
+body{height:100%;background:#fff;color:#1f1f1f;font-family:Arial,Verdana,sans-serif;font-size:11px;padding:0px 0;}
+ul, ol{list-style:none;}
+a {text-decoration: none;}
+.text-center {text-align: center; padding: 0px 0;}
+h2 {margin-bottom: 30px;}
+.wrap {width: 653px; margin: 0 auto;}
+.clear {clear: both;}
+
+/* Tutorial CSS */
+.heat-map {border: 0px solid #ccc; margin: 0 auto 10px auto; width: 100px;}
+.heat-map tr th {padding: 0px 0px; border-right: 0px solid #ccc; border-bottom: 0px solid #ccc; border-top: 0px solid #fff; border-left: 0px solid #fff; text-shadow: 0 0px 0 #fff; font: bold 10px Arial, sans-serif; text-transform: upp    ercase; color: #000;
+background-color: #fff;
+    background-image: -moz-linear-gradient(center top , #fff, #fff);
+}
+.heat-map tr th.last {border-right: none;}
+.heat-map tr th.first, .heat-map tr td.stats-title {border-left: none; text-align: left;}
+.heat-map tr td {padding: 0px 0px; /*border-top: 1px solid #fff; border-right: 1px solid #fff; */ border-right: 0px solid #fff;border-bottom: 0px solid #fff;text-align right; color: #000; font-size: 0px;}
+tr.stats-row {text-align: right;}
+.heat-map tr.stats-row td.stats-title {text-align: right; color: #111; font-size: 12px; text-shadow: 0 0px 0 #fff; background: #fff; border-top: 0px solid #fff; border-bottom: 0px solid #ccc;  border-right: 0px solid #ccc;}
+.heat-map tr.stats-row td.stats-title.last {border-bottom: 0px solid #fff;}
+</style>
