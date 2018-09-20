@@ -28,12 +28,12 @@ import tensorflow as tf
 import tensorflow_fold as td
 from tensorflow_fold.public import loom
 
-import models_vd.modules as lm
-from models_vd.assembler import INVALID_EXPR, _module_output_type
+import models_mnist.modules as lm
+from models_mnist.assembler import INVALID_EXPR, _module_output_type
 
 
 class ProgramExecutor:
-  def __init__(self, inputs, output_pool, assembler, params):
+  def __init__(self, inputs, output_pool, assembler, params) :
     """Initialize program execution subcomponent.
 
     Args:
@@ -60,8 +60,7 @@ class ProgramExecutor:
     self._loom_ops = loom_ops_dict
 
     # create a loom object
-    keys = ['text', 'image', 'answer', 'caption', 'time',
-            'fact', 'round', 'text_feat', 'cap_feat']
+    keys = ['text', 'image', 'fact', 'time', 'round', 'text_feat']
     batch_ins = {types[k]: loom_inputs[k] for k in keys if k in loom_inputs}
     self._loom = loom.Loom(batch_inputs=batch_ins, named_ops=loom_ops_dict)
 
@@ -70,16 +69,8 @@ class ProgramExecutor:
                     'att': self.get_loom_output(types['attention']),
                     'logits': self.get_loom_output(types['float'])}
 
-    # build alignment networks
-    if 'nmn-cap' in params['model']:
-      # binary classification over the alignment
-      align_context = self.get_loom_output(types['align'])
-      align_loss = self._build_align_network(align_context, inputs['align_gt'])
-      self.outputs['cap_align_loss'] = align_loss
-      used_inputs.append('align_gt')
-
     # add invalid prog to used inputs
-    used_inputs.extend(['prog_validity', 'prog_validity_cap'])
+    used_inputs.extend(['prog_validity'])
     self.inputs = {ii: inputs[ii] for ii in used_inputs}
     # time/round place holder
     self.inputs['time'] = loom_inputs['time']
@@ -114,6 +105,62 @@ class ProgramExecutor:
     new_size = [-1, params['num_rounds'], shape[1], shape[2]]
     return tf.reshape(text_mod, new_size)
 
+  def _build_image_feature_network(self, image):
+    """
+      Takes in images and build features for the program
+    """
+
+    output = image
+    # local aliases
+    BN = tf.contrib.layers.batch_norm
+    max_pool = tf.layers.max_pooling2d
+    # Four convolutions networks followed by pooling
+    for ii in range(2):
+      # Convolutional Layer
+      if self.params['align_image_features']:
+        output = tf.layers.conv2d(inputs=output, filters=32,
+                                  kernel_size=[5, 5], padding="valid",
+                                  activation=None)
+      else:
+        output = tf.layers.conv2d(inputs=output, filters=32,
+                                  kernel_size=[3, 3], padding="same",
+                                  activation=None)
+
+      # if batch norm is to be used
+      if self.params['use_batch_norm']:
+        output = BN(output, center=True, scale=True,
+                    is_training=self.params['train_mode'])
+
+      # Re_lU
+      output = tf.nn.relu(output, 'relu')
+
+      # Pooling Layer
+      output = max_pool(output, pool_size=[2, 2], strides=2)
+
+    for ii in range(2):
+      # Convolutional Layer
+      if self.params['align_image_features']:
+        padding = 'valid'
+      else:
+        padding = 'same'
+
+      output = tf.layers.conv2d(inputs=output, filters=64,
+                                kernel_size=[3, 3], padding=padding,
+                                activation=None)
+
+      # if batch norm is to be used
+      if self.params['use_batch_norm']:
+        output = BN(output, center=True, scale=True,
+                    is_training=self.params['train_mode'])
+
+      # Re_lU
+      output = tf.nn.relu(output, 'relu')
+
+      # Pooling Layer
+      output = max_pool(output, pool_size=[2, 2], strides=2)
+
+    return output
+
   def _build_fact_encoder(self, inputs):
     """
     """
@@ -122,6 +169,7 @@ class ProgramExecutor:
     params = self.params
 
     with tf.variable_scope(self.params['embed_scope'], reuse=True):
+      size = [params['text_vocab_size'], params['text_embed_size']]
       embed_mat = tf.get_variable('embed_mat')
 
     # flatten
@@ -175,9 +223,10 @@ class ProgramExecutor:
     params = self.params
 
     # A. image
-    loom_inputs['image'], _ = lm.add_spatial_coord_map(inputs['img_feat'])
-    #loom_inputs['image'] = inputs['img_feat']
-    used_inputs = ['img_feat']
+    # build image feature network
+    image_feat = self._build_image_feature_network(inputs['image'])
+    loom_inputs['image'], _ = lm.add_spatial_coord_map(image_feat)
+    used_inputs = ['image']
 
     # B. text -- both question and caption
     key = 'ques_attended'
@@ -196,17 +245,6 @@ class ProgramExecutor:
 
     concat_list = [adjusted_text]
     loom_inputs['text_feat'] = tf.concat(concat_list, -1)
-
-    # C. Get captions, if needed
-    if 'nmn-cap' in params['model']:
-      key = 'cap_attended'
-      if params['train_mode']: text = output_pool[key]
-      else:
-        text = inputs[key]
-        used_inputs.append(key)
-      loom_inputs['caption'] = self._adjust_text(text)
-
-      loom_inputs['cap_feat'] = loom_inputs['caption']
 
     # D. time steps (internal placeholder)
     loom_inputs['time'] = tf.placeholder(tf.int32, (None, 1), 'time')
@@ -234,7 +272,6 @@ class ProgramExecutor:
     size = (params['num_rounds'], params['max_dec_len'],
             params['text_embed_size'])
     types['text'] = loom.TypeShape('float32', size, 'text')
-    types['caption'] = loom.TypeShape('float32', size, 'caption')
 
     size = (params['text_embed_size'],)
     types['text_slice'] = loom.TypeShape('float32', size, 'text_slice')
@@ -244,11 +281,10 @@ class ProgramExecutor:
 
     size = (params['num_rounds'], params['max_dec_len'], concat_dim)
     types['text_feat'] = loom.TypeShape('float32', size, 'text_feat')
-    types['cap_feat'] = loom.TypeShape('float32', size, 'cap_feat')
     size = (concat_dim,)
     types['text_feat_slice'] = loom.TypeShape('float32', size, 'text_feat_slice')
 
-    # include spatial dimensions (x, y), add 2
+    # TODO: cleaner way to include spatial dimensions for img_feat
     size = (params['h_feat'], params['w_feat'], params['d_feat'] + 2)
     types['image'] = loom.TypeShape('float32', size, 'image')
 
@@ -265,7 +301,7 @@ class ProgramExecutor:
     types = self._loom_types
     # create all modules under the same scope
     wt = params.get('priority_weight', 1.0)
-    op_params = {'map_dim': 1024, 'priority_weight': wt}
+    op_params = {'map_dim': params['map_size'], 'priority_weight': wt}
     with tf.variable_scope('loom_modules') as module_scope:
       op_params['module_scope'] = module_scope
 
@@ -286,7 +322,7 @@ class ProgramExecutor:
     in_types = [types['attention'], types['attention']]
     out_types = [types['attention']]
     loom_ops_dict['max_attention'] = lm.BinaryLoomOp(in_types, out_types,
-                              tf.maximum)
+                                                     tf.maximum)
 
     # basic attention manipulation ops
     in_types = [types['attention'], types['float']]
@@ -330,6 +366,8 @@ class ProgramExecutor:
     # and module
     in_types = [types['attention'], types['attention']]
     loom_ops_dict['and_op'] = lm.AndLoomOp(in_types, out_types, op_params)
+    # diff module
+    loom_ops_dict['diff_op'] = lm.DiffLoomOp(in_types, out_types, op_params)
 
     # transform module
     in_types = [types['attention'], types['image'], types['text_slice']]
@@ -340,17 +378,15 @@ class ProgramExecutor:
     op_params['encode_size'] = params['lstm_size']
     loom_ops_dict['describe'] = lm.DescribeLoomOp(in_types, out_types, op_params)
 
+    # exist module
+    loom_ops_dict['exist'] = lm.ExistLoomOp(in_types, out_types, op_params)
+
+    # count module
+    loom_ops_dict['count'] = lm.CountLoomOp(in_types, out_types, op_params)
+
     # invalid Module
     in_types = [types['image']]
     loom_ops_dict['invalid'] = lm.InvalidLoomOp(in_types, out_types, op_params)
-    #------------------------------------------------------------------
-    # type converter ops
-    in_types, out_types = [types['caption']], [types['text']]
-    loom_ops_dict['convert_cap_in'] = lm.IdentityLoomOp(in_types, out_types)
-    in_types, out_types = [types['context']], [types['align']]
-    loom_ops_dict['convert_cap_out'] = lm.IdentityLoomOp(in_types, out_types)
-    in_types, out_types = [types['cap_feat']], [types['text_feat']]
-    loom_ops_dict['convert_cap_feat'] = lm.IdentityLoomOp(in_types, out_types)
 
     return loom_ops_dict
   #---------------------------------------------------------
@@ -367,46 +403,29 @@ class ProgramExecutor:
     # dynamically assemble the graph, based on predicted tokens
     if self.params['train_mode']:
       ques_programs = batch['gt_layout']
-      if 'nmn-cap' in self.params['model']:
-        cap_programs = batch['sh_cap_prog']
     else:
       ques_programs = output_pool['pred_tokens']
-      if 'nmn-cap' in self.params['model']:
-        cap_programs = output_pool['pred_tokens_cap']
-
     tokens = {'ques': ques_programs}
-    if 'nmn-cap' in self.params['model']: tokens['caption'] = cap_programs
     weaver, loom_outputs, invalid_prog \
             = self._assembler.assemble(tokens, self, visualize)
     # build feed dict from loom
     feed_dict = weaver.build_feed_dict(loom_outputs)
 
-    # additional feeds
-    feed_dict.update(self._produce_add_feeds(batch, output_pool, invalid_prog))
-    return feed_dict
-  #------------------------------------------------------------
-
-  def _produce_add_feeds(self, batch, output_pool, invalid_prog):
-    feed_dict = {}
-
     # feed invalid Prog
     feed_dict[self.inputs['prog_validity']] = np.array(invalid_prog['ques'])
-    if 'nmn-cap' in self.params['model']:
-      feed_dict[self.inputs['prog_validity_cap']] = np.array(invalid_prog['cap'])
 
     # additional feeds
-    feed_dict[self.inputs['img_feat']] = batch['img_feat']
-    if self.params['use_fact']:
-      feed_dict[self.inputs['fact']] = batch['fact']
-      feed_dict[self.inputs['fact_len']] = batch['fact_len']
-
-    if 'nmn-cap' in self.params['model']:
-      feed_dict[self.inputs['align_gt']] = batch['align_gt']
+    feed_dict[self.inputs['image']] = batch['imgs']
 
     max_time = self.params['max_dec_len']
     feed_dict[self.inputs['time']] = np.arange(max_time).reshape([-1, 1])
     round_ranges = np.arange(self.params['num_rounds']).reshape([-1, 1])
     feed_dict[self.inputs['round']] = round_ranges
+
+    # fact is needed
+    if self.params['use_fact']:
+      feed_dict[self.inputs['fact']] = batch['fact']
+      feed_dict[self.inputs['fact_len']] = batch['fact_len']
 
     if not self.params['train_mode']:
       # list of labels to read from output pool conditionally
@@ -414,7 +433,6 @@ class ProgramExecutor:
       for label in labels:
         if label in self.inputs:
           feed_dict[self.inputs[label]] = output_pool[label]
-      feed_dict[self.inputs['img_feat']] = batch['img_feat']
 
     return feed_dict
   #------------------------------------------------------------
@@ -424,43 +442,26 @@ class ProgramExecutor:
     '''
       Go over the outputs, cap tokens and ques tokens
     '''
-    if 'nmn-cap' in self.params['model']:
-      cap_tokens = output['pred_tokens_cap'][:, 0]
     ques_tokens = output['pred_tokens']
     mod_out_type = _module_output_type
     mod_dict = self._assembler.module_names
 
     att = output['att']
-    # logits -> weights when visualizing
-    weights = output['logits']
+    weights = output['weight']
 
     # segregrated outputs
     sep_att = []
     sep_wts = []
     wt_labels = []
-    num_reuse = 0
-    att_ind = 0
-    weight_ind = 0
-    # go over caption
-    if 'nmn-cap' in self.params['model']:
-      for t_id in range(self.params['max_dec_len']):
-        cur_module = mod_dict[cap_tokens[t_id]]
-        if cur_module == '<eos>': break
-        if mod_out_type[cur_module] == 'att':
-          sep_att.append(('cap', t_id, 0, att[att_ind]))
-          att_ind += 1
-
-          if cur_module == '_Find':
-            wt_labels.append('C_%d' % t_id)
-            num_reuse += 1
-
+    num_reuse = 0 att_ind = 0 weight_ind = 0
     # assume a batch size of 1
     for r_id in range(self.params['num_rounds']):
-      for t_id in range(self.params['max_dec_len']):
+      #refer_seen = False
+      for t_id in range(self.params['max_dec_length']):
         cur_module = mod_dict[ques_tokens[t_id, r_id]]
         if cur_module == '<eos>':
           # even answer has a weight now
-          if self.params['use_fact']:
+          if self.params['use_answer'] or self.params['use_fact']:
             wt_labels.append('A%d' % r_id)
             num_reuse += 1
           break
@@ -470,25 +471,26 @@ class ProgramExecutor:
           att_ind += 1
 
         if cur_module == '_Refer':
+          refer_seen = True
           st = weight_ind
           end = weight_ind + num_reuse
           sep_wts.append((r_id, weights[st:end], wt_labels))
           weight_ind += num_reuse
 
+        '''
         if self.params['reuse_refer'] and cur_module == '_Refer':
           wt_labels.append('Q%d_%d' % (r_id, t_id))
           num_reuse += 1
 
         if cur_module == '_Find':
+          if refer_seen and self.params['remove_aux_find']: continue
           wt_labels.append('Q%d_%d' % (r_id, t_id))
           num_reuse += 1
-
-    # do not assert if baseline
-    if 'baseline' in self.params['model']: return sep_att, sep_wts
+        '''
 
     for arg in sep_wts: assert(abs(np.sum(arg[1]) - 1.0) < 1e-5)
 
     assert(weight_ind == weights.shape[0])
-    assert(att_ind == att.shape[0])
+    #assert(att_ind == att.shape[0])
 
     return sep_att, sep_wts

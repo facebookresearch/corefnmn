@@ -29,12 +29,11 @@ def read_command_line():
   #-------------------------------------------------------------------------
 
   # data input settings
-  parser.add_argument('--dataset', default='visdial_v0.9_tiny',
-                      help='Visdial dataset type')
-  parser.add_argument('--data_root', default='data/',
-                      help='Root to the data')
-  parser.add_argument('--feature_path', default='data/resnet_res5c/',
-                      help='Path to the image features')
+  parser.add_argument('--dataset', default='mnist', help='Visdial dataset type')
+  parser.add_argument('--input_img', default='data/resnet_res5c/',\
+                      help='Path with image features')
+  parser.add_argument('--data_root', default='data/',\
+                      help='HDF5 file with preprocessed questions')
   parser.add_argument('--text_vocab_path', default='',
                       help='Path to the vocabulary for text')
   parser.add_argument('--prog_vocab_path', default='',
@@ -44,13 +43,14 @@ def read_command_line():
   #--------------------------------------------------------------------------
 
   # specify encoder/decoder
-  parser.add_argument('--model', default='nmn-cap-prog-only',
-                      help='Name of the model, will be changed later')
+  parser.add_argument('--model', default='nmn', help='Name of the model')
   parser.add_argument('--generator', default='ques',
                       help='Name of the generator to use (ques | memory)')
   parser.add_argument('--decoder', default='gen',
                       help='Name of the decoder to use (gen | disc)')
-  parser.add_argument('--preload_features', default=False, type=bool,
+  parser.add_argument('--img_norm', default=1, type=int,
+                      help='Normalize the image feature. 1=yes, 0=no')
+  parser.add_argument('--preload_feats', default=False, type=bool,
                       help='Preload visual features on RAM')
   #-------------------------------------------------------------------------
 
@@ -78,30 +78,30 @@ def read_command_line():
 
   parser.add_argument('--max_enc_len', default=24, type=int,
                       help='Maximum encoding length for sentences (ques|cap)')
-  parser.add_argument('--max_dec_len', default=14, type=int,
+  parser.add_argument('--max_dec_len', default=8, type=int,
                       help='Maximum decoding length for programs (ques|cap)')
   parser.add_argument('--dec_sampling', default=False, type=bool,
-                      help='Sample while decoding programs vs argmax')
-  #---------------------------------------------------------------------------
-
-  parser.add_argument('--use_refer', dest='use_refer', action='store_true',
-                      help='Flag to use Refer for coreference resolution')
+                      help='Sample while decoding program')
+  parser.add_argument('--use_batch_norm', dest='use_batch_norm',
+                      action='store_true', help='Flag to use batch norm')
+  parser.set_defaults(use_batch_norm=False)
+  parser.add_argument('--align_image_features', dest='align_image_features',
+                      action='store_true', help='Flag to align image features')
+  parser.set_defaults(align_image_features=False)
+  parser.add_argument('--use_refer', dest='use_refer',
+                      action='store_true', help='Flag for Refer Module')
   parser.set_defaults(use_refer=False)
-  parser.add_argument('--use_fact', dest='use_fact', action='store_true',
-                      help='Flag to use the fact in coreference pool')
-  parser.set_defaults(use_fact=False)
-  parser.add_argument('--supervise_attention', dest='supervise_attention',
+  parser.add_argument('--remove_aux_find', dest='remove_aux_find',
                       action='store_true',
-                      help='Flag to supervise attention for the modules')
-  parser.set_defaults(supervise_attention=False)
+                      help='Flag to remove auxilliary find modules')
+  parser.set_defaults(remove_aux_find=False)
+  parser.add_argument('--use_fact', dest='use_fact',
+                      action='store_true', help='Flag to use Q+A as fact')
+  parser.set_defaults(use_fact=False)
   parser.add_argument('--amalgam_text_feats', dest='amalgam_text_feats',
                       action='store_true',
                       help='Flag to amalgamate text features')
   parser.set_defaults(amalgam_text_feats=False)
-  parser.add_argument('--no_cap_alignment', dest='cap_alignment',
-                      action='store_false',
-                      help='Use the auxiliary caption alignment loss')
-  parser.set_defaults(cap_alignment=True)
   #-------------------------------------------------------------------------
 
   # optimization params

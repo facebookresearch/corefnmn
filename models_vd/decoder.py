@@ -42,6 +42,7 @@ class AnswerDecoder:
       output_pool:
       params:
     """
+
     self.params = params
 
     # keep track of inputs and outputs

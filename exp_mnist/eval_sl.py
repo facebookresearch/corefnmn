@@ -1,4 +1,4 @@
-r"""Copyright (c) Facebook, Inc. and its affiliates.
+"""Copyright (c) Facebook, Inc. and its affiliates.
 All rights reserved.
 
 This source code is licensed under the license found in the
@@ -15,13 +15,13 @@ Script to train Visual Dialog model using supervised learning.
 
 Trains visual dialog model that performs explicit visual coreference resolution
 using neural module networks. Additional details are in the paper:
-  Visual Coreference Resolution in Visual Dialog using Neural Module Networks
-  Satwik Kottur, José M. F. Moura, Devi Parikh, Dhruv Batra, Marcus Rohrbach
-  European Conference on Computer Vision (ECCV), 2018
+ Visual Coreference Resolution in Visual Dialog using Neural Module Networks
+ Satwik Kottur, José M. F. Moura, Devi Parikh, Dhruv Batra, Marcus Rohrbach
+ European Conference on Computer Vision (ECCV), 2018
 
 Usage:
-  python -u exp_vd/eval_sl.py --gpu_id=0 --test_split='val' \
-       --checkpoint='checkpoints/model_epoch_005.tmodel'
+ python -u exp_mnist/eval_sl.py --gpu_id=0 --test_split='valid' \
+   --checkpoint='checkpoints/model_epoch_005.tmodel'
 """
 
 from __future__ import absolute_import, division, print_function
@@ -35,12 +35,12 @@ from tqdm import tqdm as progressbar
 import numpy as np
 import tensorflow as tf
 
-from exp_vd import options
+from exp_mnist import options
 
 # read command line options
 parser = argparse.ArgumentParser()
 parser.add_argument('--checkpoint', required=True)
-parser.add_argument('--test_split', default='val', \
+parser.add_argument('--test_split', default='valid', \
                     help='Which split to run evaluation on')
 parser.add_argument('--gpu_id', type=int, default=0)
 
@@ -61,9 +61,9 @@ tf_config = tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True),
                            log_device_placement=False)
 sess = tf.Session(config=tf_config)
 
-from models_vd.assembler import Assembler
-from models_vd.model import CorefNMN
-from loader_vd.data_reader import DataReader
+from models_mnist.assembler import Assembler
+from models_mnist.model import CorefNMN
+from loader_mnist.data_reader import DataReader
 from util import metrics
 from util import support
 
@@ -81,29 +81,21 @@ args = saved_args
 args['preload_feats'] = False
 # no supervision is needed
 args['supervise_attention'] = False
-# adjust for complex models
-args['batch_size'] = min(args['batch_size'], 10)
 
 support.pretty_print_dict(args)
 
 # Data files
 root = args['data_root']
-if args['use_refer']:
-  # use refer module
-  file_name = 'imdb/imdb_%s_refermrf_att.npy' % args['test_split']
-else:
-  file_name = 'imdb/imdb_%s.npy' % args['test_split']
-imdb_path_val = os.path.join(root, file_name)
+imdb_path_val = os.path.join(root, 'imdb/imdb_%s.npy' % args['test_split'])
 
-# assemblers for question and caption programs
+# assembler
 question_assembler = Assembler(args['prog_vocab_path'])
-caption_assembler = Assembler(args['prog_vocab_path'])
-assemblers = {'ques': question_assembler, 'cap': caption_assembler}
+assemblers = {'ques': question_assembler}
 
 # dataloader for val
 input_dict = {'path': imdb_path_val, 'shuffle': False, 'one_pass': True,
               'args': args, 'assembler': question_assembler,
-              'fetch_options': True}
+              'use_count': False, 'fetch_options': True}
 val_loader = DataReader(input_dict)
 
 # model for training
@@ -120,7 +112,6 @@ if 'num_rounds' not in eval_params:
 # model for evaluation
 # create another assembler of caption
 model = CorefNMN(eval_params, assemblers)
-model.setup_training()
 
 # Load snapshot
 print('Loading checkpoint from: %s' % args['checkpoint'])
@@ -128,48 +119,25 @@ snapshot_saver = tf.train.Saver(max_to_keep=None)  # keep all snapshots
 snapshot_saver.restore(sess, args['checkpoint'])
 
 print('Evaluating on %s' % args['test_split'])
-ranks = []
-matches = []
+ans_matches = []
+prog_matches = []
 total_iter = int(val_loader.batch_loader.num_inst / args['batch_size'])
 num_iters = 0
-
-# get confusion matrix only if using refer
-confusion_mat = np.zeros((2, 2))
-if args['use_refer']:
-  refer_token = question_assembler.name2idx_dict['_Refer']
-  find_token = question_assembler.name2idx_dict['_Find']
-
 for batch in progressbar(val_loader.batches(), total=total_iter):
-  batch_ranks, outputs = model.run_evaluate_iteration(batch, sess)
+  batch_matches, outputs = model.run_evaluate_iteration(batch, sess)
 
-  ranks.append(batch_ranks)
-  if 'matches' in outputs: matches.append(outputs['matches'])
-
-  # debug, get confusion between find/refer
-  if args['use_refer']:
-    find_gt = batch['gt_layout'] == find_token
-    refer_gt = batch['gt_layout'] == refer_token
-    find_pred = outputs['pred_tokens'] == find_token
-    refer_pred = outputs['pred_tokens'] == refer_token
-
-    confusion_mat[0, 0] += np.sum(find_pred & find_gt)
-    confusion_mat[0, 1] += np.sum(refer_pred & find_gt)
-    confusion_mat[1, 0] += np.sum(find_pred & refer_gt)
-    confusion_mat[1, 1] += np.sum(refer_pred & refer_gt)
+  ans_matches.append(batch_matches)
+  if 'matches' in outputs:
+    prog_matches.append(outputs['matches'])
 
 try:
-  if len(matches) > 0:
-    matches = np.concatenate(matches)
-    percent = 100*np.sum(matches) / matches.size
+  if len(prog_matches) > 0:
+    prog_matches = np.concatenate(prog_matches)
+    percent = 100*np.sum(prog_matches) / prog_matches.size
     print('Program accuracy: %f percent\n' % percent)
 except:
   pass
 
-# print confusion matrix
-print(confusion_mat)
-
-# save the ranks
-param_path = args['checkpoint'].replace('.tmodel', '_rankdump.npy')
-np.save(param_path, np.hstack(ranks))
-
-metrics = metrics.compute_metrics(np.hstack(ranks))
+ans_matches = np.concatenate(ans_matches)
+percent = 100 * np.sum(ans_matches) / ans_matches.size
+print('Answer accuracy: %f percent\n' % percent)

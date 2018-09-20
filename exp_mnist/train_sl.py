@@ -1,4 +1,4 @@
-r"""Copyright (c) Facebook, Inc. and its affiliates.
+"""Copyright (c) Facebook, Inc. and its affiliates.
 All rights reserved.
 
 This source code is licensed under the license found in the
@@ -11,20 +11,13 @@ this source tree.
 Copyright (c) 2017, Ronghang Hu
 All rights reserved.
 
-Script to train Visual Dialog model using supervised learning.
+Script to train MNIST Dialog model using supervised learning.
 
-Trains visual dialog model that performs explicit visual coreference resolution
+Trains mnist dialog model that performs explicit visual coreference resolution
 using neural module networks. Additional details are in the paper:
   Visual Coreference Resolution in Visual Dialog using Neural Module Networks
   Satwik Kottur, José M. F. Moura, Devi Parikh, Dhruv Batra, Marcus Rohrbach
   European Conference on Computer Vision (ECCV), 2018
-
-Usage (check scripts/run_train.sh):
-  python -u exp_vd/train_sl.py --gpu_id=0 --dataset='visdial_v0.9' \
-      --data_root='data/' --model='nmn-cap-prog-only' --batch_size=5 \
-      --use_refer --use_fact --generator='mem' --feature_path='data/' \
-      --learning_rate=0.0001 --amalgam_text_feats \
-      --decoder='disc' --lstm_size 512
 """
 
 from __future__ import absolute_import, division, print_function
@@ -38,7 +31,7 @@ from tqdm import tqdm as progressbar
 import numpy as np
 import tensorflow as tf
 
-from exp_vd import options
+from exp_mnist import options
 
 # read command line options
 args = options.read_command_line()
@@ -50,9 +43,9 @@ tf_config = tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True),
                            log_device_placement=False)
 sess = tf.Session(config=tf_config)
 
-from models_vd.assembler import Assembler
-from models_vd.model import CorefNMN
-from loader_vd.data_reader import DataReader
+from models_mnist.assembler import Assembler
+from models_mnist.model import CorefNMN
+from loader_mnist.data_reader import DataReader
 from util import metrics
 from util import support
 
@@ -61,35 +54,22 @@ np.random.seed(1234)
 tf.set_random_seed(1234)
 
 # Data files
-glove_mat_path = args['data_root'] + 'vocabulary_vd_glove.npy'
 args['data_root'] = os.path.join(args['data_root'], args['dataset'])
-args['text_vocab_path'] = os.path.join(args['data_root'], 'vocabulary_vd.txt')
+args['text_vocab_path'] = os.path.join(args['data_root'], 'vocabulary_mnist.txt')
 
 root = args['data_root']
-if args['use_refer']:
-  # use refer module
-  args['prog_vocab_path'] = os.path.join(root, 'vocabulary_layout_5.txt')
-else:
-  # no explicit refer module
-  args['prog_vocab_path'] = os.path.join(root, 'vocabulary_layout_4.txt')
-
+args['prog_vocab_path'] = os.path.join(root, 'vocabulary_layout_mnist.txt')
+args['answer_list_path'] = os.path.join(root, 'answers_mnist.txt')
 imdb_path_train = os.path.join(root, 'imdb_train.npy')
-
-# if attention supervision is needed
-if args['supervise_attention']:
-  imdb_path_train = imdb_path_train.replace('.npy', '_att.npy')
 
 # assemblers for question and caption programs
 question_assembler = Assembler(args['prog_vocab_path'])
-caption_assembler = Assembler(args['prog_vocab_path'])
-assemblers = {'ques': question_assembler, 'cap': caption_assembler}
+assemblers = {'ques': question_assembler}
 
 # Dataloader for train
 input_dict = {'path': imdb_path_train, 'shuffle': True, 'one_pass': False,
               'assembler': question_assembler, 'use_count': False,
               'args': args}
-if args['decoder'] == 'disc':
-  input_dict['fetch_options'] = True
 train_loader = DataReader(input_dict)
 
 # model params for training
@@ -100,6 +80,7 @@ train_params['text_vocab_size'] = train_loader.batch_loader.vocab_dict.num_vocab
 train_params['prog_vocab_size'] = len(question_assembler.module_names)
 train_params['pad_id'] = train_loader.batch_loader.vocab_dict.word2idx('<pad>')
 train_params['num_rounds'] = train_loader.batch_loader.num_rounds
+train_params['num_choices'] = train_loader.num_choices
 print('Using a vocab size: %d' % train_params['text_vocab_size'])
 
 # model for training
@@ -126,14 +107,6 @@ print('Saving checkpoints at: %s' % args['snapshot_path'])
 
 # initialize all variables
 sess.run(tf.global_variables_initializer())
-
-# load glove vectors for embedding
-glove_mat_path = os.path.join(args['data_root'], 'vocabulary_vd_glove.npy')
-glove_mat = np.load(glove_mat_path)
-with tf.variable_scope(train_params['embed_scope'], reuse=True):
-  embed_mat = tf.get_variable('embed_mat')
-  sess.run(tf.assign(embed_mat, glove_mat))
-#------------------------------------------------------------------------------
 
 # forget about embed and module scopes
 del train_params['embed_scope']
@@ -164,10 +137,9 @@ for n_iter, batch in enumerate(train_loader.batches()):
   # printing log
   if n_iter % 10 == 0:
     cur_time = time.strftime('%a %d%b%y %X', time.gmtime())
-    print_format = ('[%s][It: %d][Ep: %.2f][Loss: %.3f ' +
-                    'Prog: %.3f Ans: %.3f Align: %.3f]')
+    print_format = ('[%s][It: %d][Ep: %.2f][Loss: %.3f Prog: %.3f Ans: %.3f]')
     print_info = (cur_time, n_iter, epoch, losses['total'], losses['prog'],
-                  losses['ans'], losses['align'])
+                  losses['ans'])
     print(print_format % print_info)
 
   # save snapshot after every epoch
@@ -184,4 +156,3 @@ for n_iter, batch in enumerate(train_loader.batches()):
     with open(params_path, 'w') as file_id:
       json.dump(train_params, file_id)
     print('Snapshot saved to: ' + snapshot_path)
-#-------------------------------------------------------------------------

@@ -21,7 +21,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_fold as td
 from tensorflow import convert_to_tensor as to_T
-from models_vd import modules as lm
+from models_mnist import modules as lm
 
 # the number of attention input to each module
 _module_input_num = {
@@ -29,7 +29,11 @@ _module_input_num = {
                      '_Refer': 0,
                      '_Exclude': 0,
                      '_Transform': 1,
+                     '_Exist': 1,
+                     '_Count': 1,
                      '_And': 2,
+                     '_Diff': 2,
+                     '_Not': 1,
                      '_Describe': 1
                     }
 
@@ -38,8 +42,12 @@ _module_output_type = {
                        '_Find': 'att',
                        '_Refer': 'att',
                        '_Exclude': 'att',
+                       '_Exist': 'ans',
+                       '_Count': 'ans',
                        '_Transform': 'att',
                        '_And': 'att',
+                       '_Diff': 'att',
+                       '_Not': 'att',
                        '_Describe': 'ans'
                       }
 
@@ -254,7 +262,6 @@ class Assembler:
     # internalize executor and weaver
     self.executor = executor
     # build a weaver
-    if hasattr(self, 'weaver'): del self.weaver
     weaver = executor.create_weaver()
     self.weaver = weaver
     # visualize flag
@@ -265,42 +272,16 @@ class Assembler:
     num_rounds = executor.params['num_rounds']
     batch_size = batch_size // num_rounds
     outputs = []
-    reuse = [[]] * batch_size
-    cap_invalid_prog = []
+    reuse = [None] * batch_size
     ques_invalid_prog = []
 
     # program on questions and captions, if needed
-    cap_tokens = layout_tokens.get('caption', None)
     ques_tokens = layout_tokens['ques']
     for b_id in range(batch_size):
       image = weaver.batch_input(executor._loom_types['image'], b_id)
       if executor.params['use_fact']:
         fact = weaver.batch_input(executor._loom_types['fact'], b_id)
       else: fact = None
-
-      # run module networks on captions only if needed
-      if 'nmn-cap' in executor.params['model']:
-        # convert caption to text type
-        cap = weaver.batch_input(executor._loom_types['caption'], b_id)
-        cap_text = weaver.convert_cap_in(cap)
-
-        # convert cap feature to text feature for alignment
-        cap_feat = weaver.batch_input(executor._loom_types['cap_feat'], b_id)
-        cap_feat = weaver.convert_cap_feat(cap_feat)
-
-        # collect root node outputs for down the rounds
-        tokens = cap_tokens[:, num_rounds * b_id : num_rounds * (b_id + 1)]
-        inputs = (image, cap_text, None, cap_feat, tokens, [])
-        out, reuse[b_id], invalid_prog = self._assemble_program(*inputs)
-        cap_invalid_prog.extend(invalid_prog)
-
-        # convert context to align type
-        cap_out = [weaver.convert_cap_out(ii) for ii in out['comp']]
-        outputs.extend(cap_out)
-
-        # add the visualization outputs, if needed
-        if visualize:
-          outputs.extend([ii[0] for ii in out['vis']['att'] if ii[1]==0])
 
       # Now run program on questions
       text = weaver.batch_input(executor._loom_types['text'], b_id)
@@ -309,10 +290,8 @@ class Assembler:
       # collect root node outputs for down the rounds
       # tuples are immutable, recreate to ensure caption is round 0
       round_zero = weaver.batch_input(executor._loom_types['round'], 0)
-      cur_reuse = [(ii[0], ii[1], round_zero, ii[3], ii[4])
-                    for ii in reuse[b_id] if ii[3] == 0]
       tokens = ques_tokens[:, num_rounds*b_id : num_rounds*(b_id+1)]
-      inputs = (image, text, fact, text_feat, tokens, cur_reuse)
+      inputs = (image, text, fact, text_feat, tokens, [])
       out, _, invalid_prog = self._assemble_program(*inputs)
       ques_invalid_prog.extend(invalid_prog)
 
@@ -321,7 +300,7 @@ class Assembler:
         outputs.extend([ii for ii, _ in out['vis']['att']])
         outputs.extend(out['vis']['weights'])
 
-    invalid_prog = {'ques': ques_invalid_prog, 'cap': cap_invalid_prog}
+    invalid_prog = {'ques': ques_invalid_prog}
     return weaver, outputs, invalid_prog
 
   def _assemble_program(self, image, text, fact, text_feat, tokens, reuse_stack):
@@ -336,7 +315,7 @@ class Assembler:
     outputs = []
     validity = []
     # for visualizing internal nodes
-    vis_outputs = {'att': [], 'weights': [], 'logits': []}
+    vis_outputs = {'att': [], 'weights': []}
     for r_id in range(num_rounds):
       layout = tokens[:, r_id]
       invalid_prog = False
@@ -381,15 +360,12 @@ class Assembler:
         # switch cases
         if cur_op_name == '_Find':
           out = weaver.find(image, text_att)
-          # collect in reuse stack (always)
-          #if fact is None:
-          reuse_stack.append((out, text_feat_slice, round_id, r_id, t_id))
-            #reuse_stack.append((out, text_att, round_id, r_id, t_id))
 
-        if cur_op_name == '_Refer':
+        elif cur_op_name == '_Refer':
+          # nothing to refer to, wrong program
           if len(reuse_stack) == 0:
-            print('Something wrong with Refer')
-            continue
+            invalid_prog = True
+            break
 
           # if baseline is in the model, take the last output
           if 'baseline' in self.executor.params['model']:
@@ -398,11 +374,17 @@ class Assembler:
             inputs = (text_feat_slice, round_id, reuse_stack)
             out, weights, logits = self.assemble_refer(*inputs)
 
-        if cur_op_name == '_Exclude':
+        elif cur_op_name == '_Exclude':
           # clean up reuse stack to avoid current finds
           neat_stack = reuse_stack.copy()
           for prev_time in range(t_id - 1, 0, -1):
             if neat_stack[-1][-2] == prev_time: neat_stack.pop(-1)
+
+          # nothing to exclude to, wrong program
+          if len(neat_stack) == 0:
+            invalid_prog = True
+            break
+
           inputs = (text_att, round_id, neat_stack)
           out = self.assemble_exclude(*inputs)
           # collect in reuse stack
@@ -416,8 +398,29 @@ class Assembler:
           # TODO: Do this more carefully!
           penult_out = arg
 
+        elif cur_op_name == '_Exist':
+          out = weaver.exist(inputs[0], image, text_att)
+          # TODO: Do this more carefully!
+          penult_out = arg
+
+        elif cur_op_name == '_Count':
+          out = weaver.count(inputs[0], image, text_att)
+          # TODO: Do this more carefully!
+          penult_out = arg
+
         elif cur_op_name == '_And':
           out = weaver.and_op(inputs[0], inputs[1])
+
+        elif cur_op_name == '_Diff':
+          out = weaver.diff_op(inputs[0], inputs[1])
+
+        # just invert the attention
+        elif cur_op_name == '_Not':
+          out = weaver.normalize_exclude(inputs[0])
+
+        else:
+          print('Current operand not defined: ' + cur_op_name)
+          invalid_prog = True
 
         # collect outputs from all modules (visualize)
         if self.visualize:
@@ -425,12 +428,6 @@ class Assembler:
             vis_outputs['att'].append((out, r_id))
           if weights is not None:
             vis_outputs['weights'].extend(weights)
-            #vis_outputs['logits'].extend(logits)
-
-        # also add weights to usual outputs
-        #if weights is not None: print(r_id, len(weights))
-        if weights is not None:
-          if executor.params['train_mode']: outputs.extend(logits)
 
         decode_stack.append((out, _module_output_type[cur_op_name]))
 
@@ -446,9 +443,9 @@ class Assembler:
       if invalid_prog: outputs.append(weaver.invalid(image))
       else:
         outputs.append(decode_stack[-1][0])
-        if fact is not None:
-          # record fact embedding against penultimate output
+
+        # if fact is to be used, take the penultimate output
+        if executor.params['use_fact']:
           reuse_stack.append((penult_out, fact_slice, round_id, r_id, -1))
 
     return {'comp': outputs, 'vis': vis_outputs}, reuse_stack, validity
-#------------------------------------------------------------------------------

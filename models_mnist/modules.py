@@ -345,20 +345,169 @@ class AndLoomOp(loom.LoomOp):
     return [att_grid]
 #------------------------------------------------------------------------------
 
-class InvalidLoomOp(loom.LoomOp):
+class CountLoomOp(loom.LoomOp):
   """
-  Mapping: returns a context of zeros
+  Mapping: att_grid -> answer probs
+  Input:
+   input_0: [N, H, W, 1]
   Output:
-   context: [N, encodeSize] of zeros
+   answer_scores: [N, self.num_choices]
 
   Implementation:
-   Take the elementwise-min
+   1. linear transform of the attention map (also including max and min)
 
   Parameters typically contain:
     map_dim = 1024
-    module_scope = findModule
+    module_scope = count_module
     reuse = True
     scope
+  """
+  def __init__(self, in_types, out_types, params):
+    self._params = params
+    self._scope = params.get('scope', 'count_module')
+    self._module_scope = params['module_scope']
+    self._reuse = params.get('reuse', None)
+    super(CountLoomOp, self).__init__(in_types, out_types)
+
+  def instantiate_batch(self, inputs):
+    """
+      Inputs:
+        image feature for the example
+        text attention for all modules for the example
+        time id for current module
+    """
+    vis_att, img_feat, _ = inputs
+    encode_size = self._params['encode_size']
+
+    with tf.variable_scope(self._module_scope):
+      with tf.variable_scope(self._scope, reuse=self._reuse):
+
+        H, W = img_feat.shape.as_list()[1:3]
+        att_all = tf.reshape(vis_att, to_T([-1, H * W]))
+        att_min = tf.reduce_min(vis_att, axis=[1, 2])
+        att_max = tf.reduce_max(vis_att, axis=[1, 2])
+        # att_reduced has shape [N, 3]
+        att_concat = tf.concat([att_all, att_min, att_max], axis=1)
+        context = fc('fc_scores', att_concat, output_dim=encode_size)
+
+    return [context]
+#------------------------------------------------------------------------------
+
+class ExistLoomOp(loom.LoomOp):
+  '''
+    Mapping: att_grid -> answer probs
+    Input:
+     att_grid: [N, H, W, 1]
+    Output:
+     answer_scores: [N, self.num_choices]
+
+    Implementation:
+     1. Max-pool over att_grid
+     2. a linear mapping layer (without Re_lU)
+        Mapping: image_feat_grid x text_param -> att_grid
+        Input:
+         image_feat_grid: [N, H, W, D_im]
+         text_param: [N, D_txt]
+        Output:
+         att_grid: [N, H, W, 1]
+
+    Parameters typically contain:
+      map_dim = 1024
+      module_scope = find_module
+      reuse = True
+      scope
+  '''
+  def __init__(self, in_types, out_types, params):
+    self._params = params
+    self._scope = params.get('scope', 'exist_module')
+    self._module_scope = params['module_scope']
+    self._reuse = params.get('reuse', None)
+    super(ExistLoomOp, self).__init__(in_types, out_types)
+
+  def instantiate_batch(self, inputs):
+    '''
+      Inputs:
+        image feature for the example
+        text attention for all modules for the example
+        time id for current module
+    '''
+    vis_att, _, _ = inputs
+    encode_size = self._params['encode_size']
+
+    with tf.variable_scope(self._module_scope):
+      with tf.variable_scope(self._scope, reuse=self._reuse):
+        att_min = tf.reduce_min(vis_att, axis=[1, 2])
+        att_avg = tf.reduce_mean(vis_att, axis=[1, 2])
+        att_max = tf.reduce_max(vis_att, axis=[1, 2])
+        # att_reduced has shape [N, 3]
+        att_reduced = tf.concat([att_min, att_avg, att_max], axis=1)
+        context = fc('fc_scores', att_reduced, output_dim=encode_size)
+
+    return [context]
+#------------------------------------------------------------------------------
+
+class DiffLoomOp(loom.LoomOp):
+  '''
+    Mapping: att_grid x att_grid -> att_grid
+    Input:
+     input_0: [N, H, W, 1]
+     input_1: [N, H, W, 1]
+    Output:
+     att_grid: [N, H, W, 1]
+
+    Implementation:
+     Take the elementwise diff and lower caps it to zero
+
+    Parameters typically contain:
+      map_dim = 1024
+      module_scope = find_module
+      reuse = True
+      scope
+  '''
+  def __init__(self, in_types, out_types, params):
+    self._params = params
+    self._scope = params.get('scope', 'diff_module')
+    self._module_scope = params['module_scope']
+    self._reuse = params.get('reuse', None)
+    super(DiffLoomOp, self).__init__(in_types, out_types)
+
+  def instantiate_batch(self, inputs):
+    '''
+      Inputs:
+        visual attention outputs
+        time id for current module
+    '''
+    input1, input2 = inputs
+
+    with tf.variable_scope(self._module_scope):
+      with tf.variable_scope(self._scope, reuse=self._reuse):
+        att_grid = tf.maximum(input1 - input2, 0.)
+
+        # now L1 normalize
+        norms = tf.einsum('ijkl->i', att_grid)
+        norms = tf.reshape(norms, [-1, 1, 1, 1])
+        #norms = tf.tile(tf.reshape(norms, [-1, 1, 1, 1]), [1, H, W, 1])
+        # NOTE: if norm is too low, then clip it
+        norms = tf.clip_by_value(norms, 1e-6, 1e6)
+        att_grid = att_grid / norms
+
+    return [att_grid]
+#------------------------------------------------------------------------------
+
+class InvalidLoomOp(loom.LoomOp):
+  """
+    Mapping: returns a context of zeros
+    Output:
+     context: [N, encode_size] of zeros
+
+    Implementation:
+     Take the elementwise-min
+
+    Parameters typically contain:
+      map_dim = 1024
+      module_scope = find_module
+      reuse = True
+      scope
   """
   def __init__(self, in_types, out_types, params):
     self._params = params

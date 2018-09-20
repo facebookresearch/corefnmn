@@ -24,9 +24,9 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_fold as td
 
-from models_vd.generator import ProgramGenerator
-from models_vd.executor import ProgramExecutor
-from models_vd.decoder import AnswerDecoder
+from models_mnist.generator import ProgramGenerator
+from models_mnist.executor import ProgramExecutor
+from models_mnist.decoder import AnswerDecoder
 from util import support
 
 
@@ -65,7 +65,7 @@ class CorefNMN:
       # Part 2: Neural Module Network
       with tf.variable_scope('execute_program'):
         self.executor = ProgramExecutor(holders, output_pool,
-                                        assemblers['cap'], params)
+                                        assemblers['ques'], params)
         self.inputs['execute_program'] = self.executor.get_inputs()
         self.outputs['execute_program'] = self.executor.get_outputs()
         # add outputs to pool
@@ -95,24 +95,10 @@ class CorefNMN:
     inputs['ques_len'] = tf.placeholder(tf.int32, [None], 'ques_len')
     inputs['prog_gt'] = tf.placeholder(tf.int32, [None, None], 'prog')
 
-    size = [None, params['max_enc_len']]
-    inputs['cap'] = tf.placeholder(tf.int32, size, 'caption')
-    inputs['cap_len'] = tf.placeholder(tf.int32, [None], 'cap_len')
-    inputs['cap_prog_gt'] = tf.placeholder(tf.int32, [None, None],
-                                           'cap_prog_gt')
-
-    # mask for pairwise program token loss
-    inputs['prog_att_mask'] = tf.placeholder(tf.float32, [None, None, None],
-                                             'mask')
-    # for supervising placeholders
-    if params['supervise_attention']:
-      size = [params['max_dec_len'], params['max_enc_len'], None, 1]
-      inputs['prog_att_gt'] = tf.placeholder(tf.float32, size, 'gt_att')
-      inputs['cap_att_gt'] = tf.placeholder(tf.float32, size, 'cap_att')
-      # masking out relevant parts for complete supervision
-      inputs['ques_super_mask'] = tf.placeholder(tf.float32, size, 'q_mask')
-      inputs['cap_super_mask'] = tf.placeholder(tf.float32, size, 'c_mask')
-      inputs['supervise_switch'] = tf.placeholder(tf.bool, 'supervise_switch')
+    # place holders for fact
+    size = [None, params['max_enc_len'] + 1]
+    inputs['fact'] = tf.placeholder(tf.int32, size, 'fact')
+    inputs['fact_len'] = tf.placeholder(tf.int32, [None], 'fact_len')
 
     # tie encoder and decoder
     size = [params['num_layers'], None, params['lstm_size']]
@@ -120,52 +106,29 @@ class CorefNMN:
     inputs['enc_dec_c'] = tf.placeholder(tf.float32, size, 'enc_dec_c')
 
     # Phase 2 - program execution
-    size = [None, params['h_feat'], params['w_feat'], params['d_feat']]
-    inputs['img_feat'] = tf.placeholder(tf.float32, size, 'img_feat')
+    size = [None, 112, 112, 3]
+    inputs['image'] = tf.placeholder(tf.float32, size, 'image')
     inputs['prog_validity'] = tf.placeholder(tf.bool, [None])
 
-    # Phase 2.5 - caption execution
-    inputs['align_gt'] = tf.placeholder(tf.int32, [None], 'align_cap')
-    inputs['prog_validity_cap'] = tf.placeholder(tf.bool, [None])
-
-    # Phase 3 - answer generation
-    inputs['ans_in'] = tf.placeholder(tf.int32, [None, None], 'ans_in')
-    inputs['ans_out'] = tf.placeholder(tf.int32, [None, None], 'ans_out')
-    inputs['ans'] = tf.placeholder(tf.int32, [None, None], 'ans')
-    inputs['ans_len'] = tf.placeholder(tf.int32, [None], 'ans_len')
-
-    # if discriminative, encode options
-    # NOTE: num_options hard coded to 100
-    num_options = 100
-    size = [None, params['max_enc_len'], num_options]
-    inputs['opt'] = tf.placeholder(tf.int32, size, 'opt_out')
-    inputs['opt_len'] = tf.placeholder(tf.int32, [None, num_options], 'opt_len')
-    inputs['gt_ind'] = tf.placeholder(tf.int32, [None], 'gt_ind')
+    # for the answer indices
+    inputs['ans_ind'] = tf.placeholder(tf.int32, [None], 'ans_ind')
 
     # history
-    size = [None, params['num_rounds'], 2 * params['max_enc_len']]
+    size = [None, params['num_rounds'], params['max_enc_len'] + 1]
     inputs['hist'] = tf.placeholder(tf.int32, size, 'history')
     size = [None, params['num_rounds']]
     inputs['hist_len'] = tf.placeholder(tf.int32, size, 'hist_len')
-
-    # place holders for fact
-    size = [None, params['max_enc_len']]
-    inputs['fact'] = tf.placeholder(tf.int32, size, 'fact')
-    inputs['fact_len'] = tf.placeholder(tf.int32, [None], 'fact_len')
 
     if not self.params['train_mode']:
       # additional placeholders during evaluation
       size = [None, params['lstm_size']]
       inputs['context'] = tf.placeholder(tf.float32, size, 'context')
-      size = [1, 1, None, params['lstm_size']]
-      inputs['cap_enc'] = tf.placeholder(tf.float32, size, 'cap_enc')
       size = [None, None, None, params['lstm_size']]
       inputs['ques_enc'] = tf.placeholder(tf.float32, size, 'ques_enc')
       size = [None, params['lstm_size']]
       inputs['hist_enc'] = tf.placeholder(tf.float32, size, 'hist_enc')
       size = [params['max_dec_len'], None, params['text_embed_size']]
       inputs['ques_attended'] = tf.placeholder(tf.float32, size, 'ques_att')
-      inputs['cap_attended'] = tf.placeholder(tf.float32, size, 'cap_att')
 
     return inputs
   #---------------------------------------------------------------------------
@@ -177,9 +140,6 @@ class CorefNMN:
 
     # supervised sequence prediction loss
     total_loss += self.outputs['generate_program']['prog_pred_loss']
-
-    if 'nmn-cap' in self.params['model'] and self.params['cap_alignment']:
-      total_loss += self.outputs['execute_program']['cap_align_loss']
 
     # add the total loss to the list of outputs
     self.pooled_outputs['total_loss'] = total_loss
@@ -205,10 +165,6 @@ class CorefNMN:
 
     # record all the loss values
     iter_loss['prog'] = output['prog_pred_loss']
-    if 'nmn-cap' in self.params['model']:
-      iter_loss['align'] = output['cap_align_loss']
-    else:
-      iter_loss['align'] = 0.
     iter_loss['ans'] = output['ans_token_loss']
     iter_loss['total'] = output['total_loss']
 
@@ -225,45 +181,18 @@ class CorefNMN:
     output.update(sess.run(self.outputs['execute_program'], feed_dict=feeder))
 
     if 'pred_tokens' in output:
-      output['matches'] = [batch['gt_layout'] == output['pred_tokens']]
+      prog_matches = []
+      prog_matches.append(batch['gt_layout'] == output['pred_tokens'])
+      output['matches'] = prog_matches
 
-    # if options are not to be scored
-    if not eval_options: return None, outputs
+    # Part 3: Run the answer generation language model
+    feeder = self.decoder.produce_feed_dict(batch, output)
+    output.update(sess.run(self.outputs['generate_answer'], feeder))
 
-    # Part 3: Run the answer generation language model (disc | gen)
-    if self.params['decoder'] == 'gen':
-      option_batch = output.copy()
-      option_batch.update(batch)
-      phase_output = self.outputs['generate_answer']['llh']
+    # use the logits and get the prediction
+    matches = np.argmax(output['logits'], 1) == batch['ans_ind']
 
-      num_options = len(batch['opt_len'])
-      batch_size = batch['opt_len'][0].shape[0]
-      option_scores = np.zeros((batch_size, num_options))
-
-      option_probs = np.zeros((batch_size, num_options))
-      for opt_id in range(num_options):
-        option_batch['ans_in'] = batch['opt_in'][opt_id]
-        option_batch['ans_out'] = batch['opt_out'][opt_id]
-        option_batch['ans_len'] = batch['opt_len'][opt_id]
-
-        feeder = self.decoder.produce_feed_dict(option_batch, output)
-        scores = sess.run(phase_output, feed_dict=feeder)
-        option_scores[:, opt_id] = scores
-
-    # Part 3: Run the decoder model
-    elif self.params['decoder'] == 'disc':
-      batch_size = batch['opt_len'][0].shape[0]
-      feeder = self.decoder.produce_feed_dict(batch, output)
-      output.update(sess.run(self.outputs['generate_answer'], feeder))
-      option_scores = output['scores']
-
-    # extract ground truth score, and get ranks
-    gt_scores = option_scores[(range(batch_size), batch['gt_ind'])]
-    ranks = np.sum(option_scores > gt_scores.reshape(-1, 1), axis=1) + 1
-
-    output['scores'] = option_scores
-
-    return ranks, output
+    return matches, output
   #---------------------------------------------------------------------------
 
   def run_visualize_iteration(self, batch, sess, eval_options=True):
@@ -277,41 +206,12 @@ class CorefNMN:
     feeder = self.executor.produce_feed_dict(batch, output, True)
     output.update(sess.run(self.outputs['execute_program'], feeder))
 
+    # Part 3: Run the answer generation language model
+    feeder = self.decoder.produce_feed_dict(batch, output)
+    output.update(sess.run(self.outputs['generate_answer'], feeder))
+
     # segregate weights and attention maps 
     output['intermediates'] = self.executor.segregrate_outputs(output)
 
-    if not eval_options: return None, output
-
-    # Part 3: Run the answer generation language model
-    if self.params['decoder'] == 'gen':
-      option_batch = output.copy()
-      option_batch.update(batch)
-      phase_output = self.outputs['generate_answer']['llh']
-
-      # Part 3: Run the answer generation language model for each option
-      num_options = len(batch['opt_len'])
-      batch_size = batch['opt_len'][0].shape[0]
-      option_scores = np.zeros((batch_size, num_options))
-      for opt_id in range(num_options):
-        option_batch['ans_in'] = batch['opt_in'][opt_id]
-        option_batch['ans_out'] = batch['opt_out'][opt_id]
-        option_batch['ans_len'] = batch['opt_len'][opt_id]
-
-        feeder = self.decoder.produce_feed_dict(option_batch, output)
-        scores = sess.run(phase_output, feed_dict=feeder)
-        option_scores[:, opt_id] = scores
-
-    # Part 3: Run the decoder model
-    elif self.params['decoder'] == 'disc':
-      batch_size = batch['opt_len'][0].shape[0]
-      feeder = self.decoder.produce_feed_dict(batch, output)
-      output.update(sess.run(self.outputs['generate_answer'], feeder))
-      option_scores = output['scores']
-
-    # extract ground truth score, and get ranks
-    gt_scores = option_scores[(range(batch_size), batch['gt_ind'])]
-    ranks = np.sum(option_scores > gt_scores.reshape(-1, 1), axis=1) + 1
-
-    output['scores'] = option_scores
-    return ranks, output
+    return None, output
 #-------------------------------------------------------------------------
