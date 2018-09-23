@@ -86,7 +86,7 @@ support.pretty_print_dict(args)
 
 # Data files
 root = args['data_root']
-imdb_path_val = os.path.join(root, 'imdb/imdb_%s.npy' % args['test_split'])
+imdb_path_val = os.path.join(root, 'imdb_%s.npy' % args['test_split'])
 
 # assembler
 question_assembler = Assembler(args['prog_vocab_path'])

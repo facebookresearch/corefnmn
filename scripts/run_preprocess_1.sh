@@ -4,8 +4,7 @@
 
 # create the necessary folders
 DATA_ROOT='data/visdial_v0.9/'
-mkdir data
-mkdir ${DATA_ROOT}
+mkdir -p ${DATA_ROOT}
 
 # download the files
 TRAIN_LINK=https://s3.amazonaws.com/visual-dialog/v0.9/visdial_0.9_train.zip

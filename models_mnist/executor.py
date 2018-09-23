@@ -453,7 +453,9 @@ class ProgramExecutor:
     sep_att = []
     sep_wts = []
     wt_labels = []
-    num_reuse = 0 att_ind = 0 weight_ind = 0
+    num_reuse = 0
+    att_ind = 0
+    weight_ind = 0
     # assume a batch size of 1
     for r_id in range(self.params['num_rounds']):
       #refer_seen = False

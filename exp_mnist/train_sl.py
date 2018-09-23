@@ -156,3 +156,7 @@ for n_iter, batch in enumerate(train_loader.batches()):
     with open(params_path, 'w') as file_id:
       json.dump(train_params, file_id)
     print('Snapshot saved to: ' + snapshot_path)
+
+    print('Launching evaluation job')
+    log_path = snapshot_path.replace('.tmodel', '_eval.log')
+    support.launch_evaluation_job(log_path, snapshot_path)

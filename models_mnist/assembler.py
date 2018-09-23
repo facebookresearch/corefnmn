@@ -147,6 +147,7 @@ class Assembler:
     # read the module list, and record the index of each module and <eos>
     with open(module_vocab_file) as f:
       self.module_names = [s.strip() for s in f.readlines()]
+
     # find the index of <eos>
     for n_s in range(len(self.module_names)):
       if self.module_names[n_s] == '<eos>':

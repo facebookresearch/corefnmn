@@ -16,18 +16,19 @@ can be used to serve batches by the batch loader while training and evaluation.
 """
 
 import argparse
+from collections import defaultdict
 import copy
 import json
 import os
 import pdb
 import sys
 
-from collections import defaultdict
 import numpy as np
-from tqdm import tqdm as progressbar
 from nltk.tokenize import word_tokenize
+from tqdm import tqdm as progressbar
 
 from util import text_processing, clean
+
 
 stop_words = ['the', 'a', 'an', 'you', 'was', 'and', 'are']
 def build_imdb(FLAGS):

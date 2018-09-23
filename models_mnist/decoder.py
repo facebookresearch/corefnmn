@@ -51,6 +51,8 @@ class AnswerDecoder:
     concat_list = []
     # add program context vector
     concat_list.append(source['context'])
+    if not self.params['train_mode']:
+      used_inputs.append('context')
 
     # stack all the vectors
     stack_vec = tf.concat(concat_list, axis=1)
@@ -94,7 +96,7 @@ class AnswerDecoder:
 
     # if not training, use previous outputs, else inputs
     if not self.params['train_mode']:
-      feeds = ['ques_enc', 'context', 'cap_enc', 'hist_enc']
+      feeds = ['ques_enc', 'context', 'hist_enc']
       feed_dict.update({self.inputs[feed]: output_pool[feed]
                         for feed in feeds if feed in self.inputs})
 

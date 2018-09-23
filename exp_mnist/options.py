@@ -46,37 +46,33 @@ def read_command_line():
   parser.add_argument('--model', default='nmn', help='Name of the model')
   parser.add_argument('--generator', default='ques',
                       help='Name of the generator to use (ques | memory)')
-  parser.add_argument('--decoder', default='gen',
-                      help='Name of the decoder to use (gen | disc)')
   parser.add_argument('--img_norm', default=1, type=int,
                       help='Normalize the image feature. 1=yes, 0=no')
-  parser.add_argument('--preload_feats', default=False, type=bool,
-                      help='Preload visual features on RAM')
   #-------------------------------------------------------------------------
 
   # model hyperparameters
-  parser.add_argument('--h_feat', default=14, type=int,
+  parser.add_argument('--h_feat', default=7, type=int,
                       help='Height of visual conv feature')
-  parser.add_argument('--w_feat', default=14, type=int,
+  parser.add_argument('--w_feat', default=7, type=int,
                       help='Width of visual conv feature')
-  parser.add_argument('--d_feat', default=2048, type=int,
+  parser.add_argument('--d_feat', default=64, type=int,
                       help='Size of visual conv feature')
-  parser.add_argument('--text_embed_size', default=300, type=int,
+  parser.add_argument('--text_embed_size', default=32, type=int,
                       help='Size of embedding for text')
-  parser.add_argument('--map_size', default=1024, type=int,
+  parser.add_argument('--map_size', default=128, type=int,
                       help='Size of the final mapping')
-  parser.add_argument('--prog_embed_size', default=300, type=int,
+  parser.add_argument('--prog_embed_size', default=32, type=int,
                       help='Size of embedding for program tokens')
-  parser.add_argument('--lstm_size', default=1000, type=int,
+  parser.add_argument('--lstm_size', default=64, type=int,
                       help='Size of hidden state in LSTM')
   parser.add_argument('--enc_dropout', default=True, type=bool,
                       help='Dropout in encoder')
   parser.add_argument('--dec_dropout', default=True, type=bool,
                       help='Dropout in decoder')
-  parser.add_argument('--num_layers', default=2, type=int,
+  parser.add_argument('--num_layers', default=1, type=int,
                       help='Number of layers in LSTM')
 
-  parser.add_argument('--max_enc_len', default=24, type=int,
+  parser.add_argument('--max_enc_len', default=14, type=int,
                       help='Maximum encoding length for sentences (ques|cap)')
   parser.add_argument('--max_dec_len', default=8, type=int,
                       help='Maximum decoding length for programs (ques|cap)')
@@ -107,7 +103,7 @@ def read_command_line():
   # optimization params
   parser.add_argument('--batch_size', default=20, type=int,
                       help='Training batch size (adjust based on GPU memory)')
-  parser.add_argument('--learning_rate', default=1e-3, type=float,
+  parser.add_argument('--learning_rate', default=1e-4, type=float,
                       help='Learning rate for training')
   parser.add_argument('--dropout', default=0.5, type=float, help='Dropout')
   parser.add_argument('--num_epochs', default=20, type=int,

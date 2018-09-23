@@ -134,4 +134,21 @@ def load_image(file_name) :
   img = Image.open(file_name)
   img.load()
   data = np.asarray(img, dtype="int32")
+
   return data
+
+
+# temporary launching of evaluation job (slurm)
+def launch_evaluation_job(output_path, checkpoint):
+  script_path = 'run_slurm_eval_mnist.sh'
+
+  # read and edit accordingly
+  with open(script_path, 'r') as file_id:
+    template = file_id.read();
+
+  # write a temporary script, run and remove
+  temp_path = script_path.replace('.sh', '_temp.sh');
+  with open(temp_path, 'w') as file_id:
+    file_id.write(template % (output_path, checkpoint));
+
+  subprocess.call('sbatch %s' % temp_path, shell=True);

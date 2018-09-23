@@ -21,10 +21,11 @@ Author: Satwik Kottur
 
 from __future__ import absolute_import, division, print_function
 
-import os, queue
 import h5py
 import json
+import os
 import threading
+import queue
 import numpy as np
 from tqdm import tqdm as progressbar
 
