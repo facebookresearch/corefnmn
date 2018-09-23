@@ -106,7 +106,7 @@ def read_command_line():
   parser.add_argument('--learning_rate', default=1e-4, type=float,
                       help='Learning rate for training')
   parser.add_argument('--dropout', default=0.5, type=float, help='Dropout')
-  parser.add_argument('--num_epochs', default=20, type=int,
+  parser.add_argument('--num_epochs', default=200, type=int,
                       help='Maximum number of epochs to run training')
   parser.add_argument('--gpu_id', type=int, default=0,
                       help='GPU id to use for training, -1 for CPU')

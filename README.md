@@ -4,7 +4,7 @@ This repository contains code for the paper:
 
 **Visual Coreference Resolution in Visual Dialog using Neural Module Networks**  
 [Satwik Kottur][2], [José M. F. Moura][3], [Devi Parikh][4], [Dhruv Batra][5], [Marcus Rohrbach][6]  
-[[PDF][15]] [[ArXiv][1]]  
+[[PDF][15]] [[ArXiv][1]] [[Code][21]]  
 _European Conference on Computer Vision (ECCV), 2018_ 
 
 ### Abstract
@@ -25,6 +25,12 @@ this work, we propose a neural module network architecture for visual
 dialog by introducing two novel modules—Refer and Exclude—that perform
 explicit, grounded, coreference resolution at a finer word level. 
 
+
+[![CorefNMN](https://imgur.com/Cx4GPIA.png)][1]
+This repository trains our explicit visual coreference model **CorefNMN**
+(figure above).
+
+
 If you find this code useful, consider citing our work:
 
 ```
@@ -40,26 +46,44 @@ If you find this code useful, consider citing our work:
 ```
 
 
-## Setup Instructions
+## Setup
 
-The code structure for this repository has been inspired from [n2nmn][13] 
+The structure for this repository has been inspired from [n2nmn][13] 
 github repository.
 
-1. The current code uses tensorflow fold and Tensorflow v1.0.
+The code is in Python3 and uses [TensorFlow r1.0][17].
+Additionally, it uses [TensorFlow Fold][16] for execution of dynamic networks.
+Install instructions for Fold can be found [here][18].
 
-1. Additional packages like `json`, `h5py`, etc., can be installed using `pip`.
+**Note**: Compatibility of Fold has been tested with only TensorFlow r1.0!
 
-1. Add the present working directory to the python path, i.e., `PYTHONPATH=.`
+Additional python package dependencies can be installed as follows:
 
+```bash
+pip install argparse
+pip install json
+pip install tqdm
+pip install numpy
+```
 
-### Preprocessing Instructions
+Finally, add the current working directory to the python path, i.e., `PYTHONPATH=.`.
+
+This repository contains experiments on two datasets: [VisDial v0.9][19]
+and [MNIST Dialog][20]. Instructions to train models on each of these datasets are given below.
+
+## Experiments on VisDial v0.9 Dataset
+
+### Preprocessing VisDial v0.9
 This code has a lot of preprocessing steps, please hold tight!
 
 There are three preprocessing phases. A script for each of these phases has 
 been provided in `scripts/` folder.  
 
 
-A. The first phase involves running the following command:
+**Phase A:** 
+In this phase, we will download the data and extract questions and captions
+as text files to run parsers (phase B).
+The first phase involves running the following command:
 
 ```bash
 scripts/run_preprocess_1.sh
@@ -67,8 +91,8 @@ scripts/run_preprocess_1.sh
 This creates a folder `data/` within which another folder `visdial_v0.9` will 
 be created. All our preprocessing steps will operate on files in this folder.
 
-B. The second phase is to run the Stanford Parser to acquire program 
-supervision for questions and captions. Follow the steps below.
+**Phase B:** The second phase runs the [Stanford Parser][9] to acquire weak
+program supervision for questions and captions. Follow the steps below:
 
 1. Download the Stanford parser [here][9]. 
 2. Next, copy the file `scripts/run_parser.sh` to the same folder as the 
@@ -76,17 +100,16 @@ Stanford parser. Ensure that the `VISDIAL_DATA_ROOT` flag in the above script
 (after copying) points correctly to the `data/visdial_v0.9` folder.
 For example, if you download and extract the Stanford parser in the parent 
 folder of this repository, `VISDIAL_DATA_ROOT` should be `../data/visdial_v0.9/`.
-Before running any of these, ensure the following:
 
 Now run the parser using the command `./run_parser.sh` from the parser folder.
 This should take about 45-60 min based on your CPU configuration.
-Feel free to adjust the memory argument in `run_parser.sh` to suit your system.
+Adjust the memory argument in `run_parser.sh` based on your RAM.
 
-C. For the third phase, ensure the following before running the corresponding
-script:
+**Phase C:** 
+For the third phase, first ensure the following:
 
 1. Download the vocabulary file from the original visual dialog codebase
-  ([github][7]). Specifically, the vocabulary for the VisDial v0.9 dataset is 
+  ([github][7]). The vocabulary for the VisDial v0.9 dataset is 
   [here][8].
 1. Save the following files: **`data/visdial_v0.9/vocabulary_layout_4.txt`**
 	
@@ -107,27 +130,70 @@ script:
 	_Refer
 	<eos>
 	```
-1. Download the visual dialog data files with coreference supervision. These
-files have been obtained using off-the-shelf, text-only coreference resolution
-system ([github][10]). The files are available at -- [train][11] and [val][12].
+1. Download the visual dialog data files with weak coreference supervision. These files have been obtained using off-the-shelf, text-only coreference resoluton system ([github][10]). They are available here: [train][11] and [val][12].
+
+Now, run the script for the third phase:
+```bash
+scripts/run_preprocess_2.sh
+```
+This will use the output from the Stanford parser, create programs for our model, extract vocabulary from train dataset, and finally create image-dialog
+database for each split (`train` and `val`) that will be used by our training code.
+
 
 ### Extracting Image Features
-To extract the image features, please follow instructions [here][14].
+To extract image features, please follow instructions [here][14].
 
 All instructions for preprocessing are now done! We are set to train visual
 dialog models that perform explicit coreference resolution.
 
 ### Training
-To train a model, please look at `run_train.sh` script that contains all common
-arguments.
-Similar examples have been given for evaluating a checkpoint.
+To train a model, look at `scripts/run_train.sh` that shows usages of command line flags for the file `exp_vd/train_sl.py`.
+Information about these flags can be obtained from `exp_vd/options.py`.
 
-### TODOs
+Usage for `exp_vd/eval_sl.py` (evaluating a checkpoint) are also given in `scripts/run_train.sh`.
+
+
+## Experiments on MNIST Dialog Dataset
+
+### Preprocessing MNIST Dialog
+
+In order to preprocess MNIST Dialog dataset, simply run the command:
+
+```bash
+scripts/run_preprocess_mnist.sh
+```
+
+As before, this will download the dataset and create image-dialog database (similar to VisDial v0.9 preprocessing phase C).
+
+Finally save the following at: **`data/mnist/vocabulary_layout_mnist.txt`**
+
+```
+_Find
+_Transform
+_Exist
+_Describe
+_Refer
+_Not
+_And
+_Count
+<eos>
+```
+
+Done with preprocessing!
+
+### Training
+Training a model is handled by `exp_mnist/train_sl.py`, while `exp_mnist/eval_sl.py` handles evaluating a specific checkpoint. Commandline options are
+parsed by `exp_mnist/options.py`.
+
+Usage of these scripts is demonstrated by the bash script `scripts/run_mnist.sh`.
+
+
+### Future Releases
   
 - [ ] Visualization scripts
-- [ ] MNIST Experiments
-- [ ] Detailed Doc Strings and instructions
-- [ ] Additional installation instructions
+- [x] MNIST Experiments
+- [ ] Detailed Doc Strings
+- [x] Additional installation instructions
 - [ ] Include pretrained models
 
 
@@ -146,3 +212,9 @@ Similar examples have been given for evaluating a checkpoint.
 [13]:https://github.com/ronghanghu/n2nmn
 [14]:https://github.com/ronghanghu/n2nmn#download-and-preprocess-the-data-1
 [15]:https://arxiv.org/pdf/1809.01816.pdf
+[16]:https://github.com/tensorflow/fold
+[17]:https://www.tensorflow.org/versions/r1.0/
+[18]:https://github.com/tensorflow/fold/blob/master/tensorflow_fold/g3doc/setup.md
+[19]:https://visualdialog.org/datahttp://cvlab.postech.ac.kr/research/attmem/
+[20]:http://cvlab.postech.ac.kr/research/attmem/
+[21]:https://github.com/facebookresearch/corefnmn
