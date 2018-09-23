@@ -26,7 +26,7 @@ dialog by introducing two novel modules—Refer and Exclude—that perform
 explicit, grounded, coreference resolution at a finer word level. 
 
 
-[![CorefNMN](https://imgur.com/Cx4GPIA.png)][1]
+[![CorefNMN](https://i.imgur.com/OERoNPz.png)][1]
 This repository trains our explicit visual coreference model **CorefNMN**
 (figure above).
 
