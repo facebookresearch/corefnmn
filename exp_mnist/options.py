@@ -78,12 +78,6 @@ def read_command_line():
                       help='Maximum decoding length for programs (ques|cap)')
   parser.add_argument('--dec_sampling', default=False, type=bool,
                       help='Sample while decoding program')
-  parser.add_argument('--use_batch_norm', dest='use_batch_norm',
-                      action='store_true', help='Flag to use batch norm')
-  parser.set_defaults(use_batch_norm=False)
-  parser.add_argument('--align_image_features', dest='align_image_features',
-                      action='store_true', help='Flag to align image features')
-  parser.set_defaults(align_image_features=False)
   parser.add_argument('--use_refer', dest='use_refer',
                       action='store_true', help='Flag for Refer Module')
   parser.set_defaults(use_refer=False)
@@ -101,9 +95,9 @@ def read_command_line():
   #-------------------------------------------------------------------------
 
   # optimization params
-  parser.add_argument('--batch_size', default=20, type=int,
+  parser.add_argument('--batch_size', default=30, type=int,
                       help='Training batch size (adjust based on GPU memory)')
-  parser.add_argument('--learning_rate', default=1e-4, type=float,
+  parser.add_argument('--learning_rate', default=1e-3, type=float,
                       help='Learning rate for training')
   parser.add_argument('--dropout', default=0.5, type=float, help='Dropout')
   parser.add_argument('--num_epochs', default=200, type=int,

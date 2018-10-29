@@ -121,7 +121,14 @@ def build_imdb(data, split, vocab, ans_list, FLAGS):
 
       # layout
       layout = prog_ques_type[round_data['metaInfo'][0]]
-      """Layout modifications for NMN version
+
+      # replace find with refer
+      if r_id > 0 and round_data['metaInfo'][0] in ['Qa', 'Qb']:
+        layout = layout.replace('_Find', '_Refer _Find _And');
+      if r_id > 0 and round_data['metaInfo'][0] == 'Qc':
+        layout = layout.replace('_Find', '_Refer');
+
+      """Layout modifications for NMN version (baseline)
       if round_data['metaInfo'][0] == 'Qd':
         layout = layout.replace('Refer', 'Find')
       if round_data['metaInfo'][0] == 'Qe':
@@ -192,8 +199,7 @@ def save_mean_std_image(FLAGS):
   std_img = None
   for image_name in progressbar(image_list):
     image_path = os.path.join(FLAGS.image_root, 'train', image_name)
-    # divide by 255 to scale
-    image = support.load_image(image_path) / 255
+    image = support.load_image(image_path)
 
     if mean_img is None:
       mean_img = image

@@ -79,7 +79,8 @@ class ProgramExecutor:
   def create_weaver(self):
     """Creates a weaver object within the current loom object.
     """
-    return self._loom.make_weaver()
+    self._weaver = self._loom.make_weaver()
+    return self._weaver
 
   def get_loom_output(self, type_shape=None):
     """Return the loom output given the type and shape.
@@ -117,19 +118,13 @@ class ProgramExecutor:
     # Four convolutions networks followed by pooling
     for ii in range(2):
       # Convolutional Layer
-      if self.params['align_image_features']:
-        output = tf.layers.conv2d(inputs=output, filters=32,
-                                  kernel_size=[5, 5], padding="valid",
-                                  activation=None)
-      else:
-        output = tf.layers.conv2d(inputs=output, filters=32,
-                                  kernel_size=[3, 3], padding="same",
-                                  activation=None)
+      output = tf.layers.conv2d(inputs=output, filters=32,
+                                kernel_size=[3, 3], padding="same",
+                                activation=None)
 
       # if batch norm is to be used
-      if self.params['use_batch_norm']:
-        output = BN(output, center=True, scale=True,
-                    is_training=self.params['train_mode'])
+      output = BN(output, center=True, scale=True,
+                  is_training=self.params['train_mode'])
 
       # Re_lU
       output = tf.nn.relu(output, 'relu')
@@ -139,19 +134,13 @@ class ProgramExecutor:
 
     for ii in range(2):
       # Convolutional Layer
-      if self.params['align_image_features']:
-        padding = 'valid'
-      else:
-        padding = 'same'
-
       output = tf.layers.conv2d(inputs=output, filters=64,
-                                kernel_size=[3, 3], padding=padding,
+                                kernel_size=[3, 3], padding="same",
                                 activation=None)
 
       # if batch norm is to be used
-      if self.params['use_batch_norm']:
-        output = BN(output, center=True, scale=True,
-                    is_training=self.params['train_mode'])
+      output = BN(output, center=True, scale=True,
+                  is_training=self.params['train_mode'])
 
       # Re_lU
       output = tf.nn.relu(output, 'relu')
@@ -169,7 +158,6 @@ class ProgramExecutor:
     params = self.params
 
     with tf.variable_scope(self.params['embed_scope'], reuse=True):
-      size = [params['text_vocab_size'], params['text_embed_size']]
       embed_mat = tf.get_variable('embed_mat')
 
     # flatten
@@ -193,27 +181,6 @@ class ProgramExecutor:
     fact_embed = tf.reshape(fact_embed, [-1, params['num_rounds'], text_dim])
     return fact_embed
 
-  def _build_align_network(self, align_vec, align_gt):
-    """
-      Takes the caption alignment vector in and produces a binary
-      classifier
-    """
-
-    params = self.params
-    with tf.variable_scope('cap_align'):
-      # construct an mlp on top to a binary classification
-      align_vec = tf.contrib.layers.fully_connected(align_vec,
-                          params['lstm_size']//2)
-      align_vec = tf.contrib.layers.fully_connected(align_vec, 2,
-                            activation_fn=None)
-
-      # alias for criterion
-      criterion = tf.nn.sparse_softmax_cross_entropy_with_logits
-      align_loss = criterion(logits=align_vec, labels=align_gt)
-      align_loss = tf.reduce_mean(align_loss)
-
-    return align_loss
-
   def _build_loom_inputs(self, inputs, output_pool):
     '''
       Sub routine to build the inputs to loom
@@ -230,10 +197,12 @@ class ProgramExecutor:
 
     # B. text -- both question and caption
     key = 'ques_attended'
-    if params['train_mode']: text = output_pool[key]
+    if params['train_mode']:
+      text = output_pool[key]
     else:
       text = inputs[key]
       used_inputs.append(key)
+
     adjusted_text = self._adjust_text(text)
     loom_inputs['text'] = adjusted_text
     batch_size = tf.shape(adjusted_text)[0]
@@ -300,8 +269,7 @@ class ProgramExecutor:
     params = self.params
     types = self._loom_types
     # create all modules under the same scope
-    wt = params.get('priority_weight', 1.0)
-    op_params = {'map_dim': params['map_size'], 'priority_weight': wt}
+    op_params = {'map_dim': params['map_size']}
     with tf.variable_scope('loom_modules') as module_scope:
       op_params['module_scope'] = module_scope
 
@@ -405,6 +373,7 @@ class ProgramExecutor:
       ques_programs = batch['gt_layout']
     else:
       ques_programs = output_pool['pred_tokens']
+
     tokens = {'ques': ques_programs}
     weaver, loom_outputs, invalid_prog \
             = self._assembler.assemble(tokens, self, visualize)
@@ -429,7 +398,7 @@ class ProgramExecutor:
 
     if not self.params['train_mode']:
       # list of labels to read from output pool conditionally
-      labels = ['ques_attended', 'cap_attended', 'ques_enc', 'cap_enc']
+      labels = ['ques_attended', 'ques_enc']
       for label in labels:
         if label in self.inputs:
           feed_dict[self.inputs[label]] = output_pool[label]

@@ -65,7 +65,7 @@ class CorefNMN:
       # Part 2: Neural Module Network
       with tf.variable_scope('execute_program'):
         self.executor = ProgramExecutor(holders, output_pool,
-                                        assemblers['ques'], params)
+                                        assemblers['copy'], params)
         self.inputs['execute_program'] = self.executor.get_inputs()
         self.outputs['execute_program'] = self.executor.get_outputs()
         # add outputs to pool
@@ -84,6 +84,15 @@ class CorefNMN:
     for ii in outputs:
       pooled_dict += outputs[ii].items()
     self.pooled_outputs = dict(pooled_dict)
+
+    self.run_outputs = [ii for _, jj in self.outputs.items()
+                        for _, ii in jj.items()]
+    self.run_inputs = list(set([ii for _, jj in self.inputs.items()
+                                for _, ii in jj.items()]))
+
+    # add additional input tensorflow fold
+    if 'prog' in params['model']:
+        self.run_inputs.append(self.executor._loom._loom_input_tensor)
 
   #---------------------------------------------------------------------------
   def _build_placeholders(self, params):
@@ -144,15 +153,52 @@ class CorefNMN:
     # add the total loss to the list of outputs
     self.pooled_outputs['total_loss'] = total_loss
 
+    self.total_loss = total_loss
+    self.run_outputs.append(self.total_loss)
+
   # setters and getters
   def get_total_loss(self):
-    return self.pooled_outputs['total_loss']
+    return self.total_loss
+    # return self.pooled_outputs['total_loss']
+
+  def set_train_step(self, step):
+    if hasattr(self, 'train_step'):
+      self.train_step.append(step)
+    else:
+      self.train_step = [step]
+
+    self.run_outputs.append(step)
 
   def add_solver_op(self, op):
     self.pooled_outputs['solver'] = op
   #---------------------------------------------------------------------------
 
   def run_train_iteration(self, batch, sess):
+    iter_loss = {}
+    h = sess.partial_run_setup(self.run_outputs, self.run_inputs)
+
+    # Part 0 & 1: Run Convnet and generate module layout
+    feeder = self.generator.produce_feed_dict(batch)
+    output = sess.partial_run(h, self.outputs['generate_program'], feeder)
+    iter_loss['prog'] = output['prog_pred_loss'] # record loss
+
+    # Part 2: Run NMN and learning steps
+    feeder = self.executor.produce_feed_dict(batch, output)
+    output.update(sess.partial_run(h, self.outputs['execute_program'], feeder))
+
+    # Part 3: Run the answer generation language model
+    feeder = self.decoder.produce_feed_dict(batch, output)
+    output.update(sess.partial_run(h, self.outputs['generate_answer'], feeder))
+    iter_loss['ans'] = output['ans_token_loss'] # record loss
+
+    # End: perform the gradient steps
+    output = sess.partial_run(h, self.train_step + [self.total_loss])
+    iter_loss['total'] = output[-1] # record loss
+
+    return iter_loss, None
+  #---------------------------------------------------------------------------
+
+  def run_train_iteration_legacy(self, batch, sess):
     iter_loss = {}
 
     # collect feeds from all subcomponents
@@ -190,7 +236,7 @@ class CorefNMN:
     output.update(sess.run(self.outputs['generate_answer'], feeder))
 
     # use the logits and get the prediction
-    matches = np.argmax(output['logits'], 1) == batch['ans_ind']
+    matches = np.argmax(output['ans_logits'], 1) == batch['ans_ind']
 
     return matches, output
   #---------------------------------------------------------------------------

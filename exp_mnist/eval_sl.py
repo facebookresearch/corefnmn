@@ -78,9 +78,6 @@ with open(param_path, 'r') as file_id:
 
 saved_args.update(args)
 args = saved_args
-args['preload_feats'] = False
-# no supervision is needed
-args['supervise_attention'] = False
 
 support.pretty_print_dict(args)
 
@@ -90,12 +87,12 @@ imdb_path_val = os.path.join(root, 'imdb_%s.npy' % args['test_split'])
 
 # assembler
 question_assembler = Assembler(args['prog_vocab_path'])
-assemblers = {'ques': question_assembler}
+copy_assembler = Assembler(args['prog_vocab_path'])
+assemblers = {'ques': question_assembler, 'copy': copy_assembler}
 
 # dataloader for val
 input_dict = {'path': imdb_path_val, 'shuffle': False, 'one_pass': True,
-              'args': args, 'assembler': question_assembler,
-              'use_count': False, 'fetch_options': True}
+              'args': args, 'assembler': question_assembler}
 val_loader = DataReader(input_dict)
 
 # model for training
@@ -105,12 +102,7 @@ eval_params['enc_dropout'] = False
 eval_params['dec_dropout'] = False
 eval_params['dec_sampling'] = False # do not sample, take argmax
 
-# for models trained later
-if 'num_rounds' not in eval_params:
-  eval_params['num_rounds'] = val_loader.batch_loader.num_rounds
-
 # model for evaluation
-# create another assembler of caption
 model = CorefNMN(eval_params, assemblers)
 
 # Load snapshot
@@ -126,17 +118,18 @@ num_iters = 0
 for batch in progressbar(val_loader.batches(), total=total_iter):
   batch_matches, outputs = model.run_evaluate_iteration(batch, sess)
 
+  # batch['ans_ind'] = np.argmax(outputs['ans_logits'], 1)
+  # np.save('batch_model.npy', batch)
+  # sys.exit(1)
+
   ans_matches.append(batch_matches)
   if 'matches' in outputs:
     prog_matches.append(outputs['matches'])
 
-try:
-  if len(prog_matches) > 0:
-    prog_matches = np.concatenate(prog_matches)
-    percent = 100*np.sum(prog_matches) / prog_matches.size
-    print('Program accuracy: %f percent\n' % percent)
-except:
-  pass
+if len(prog_matches) > 0:
+  prog_matches = np.concatenate(prog_matches)
+  percent = 100 * np.sum(prog_matches) / prog_matches.size
+  print('Program accuracy: %f percent\n' % percent)
 
 ans_matches = np.concatenate(ans_matches)
 percent = 100 * np.sum(ans_matches) / ans_matches.size

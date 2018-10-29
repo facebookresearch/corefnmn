@@ -41,7 +41,6 @@ class BatchLoaderMNIST:
 
     self.imdb = imdb
     self.params = params
-    self.fetch_options = self.params.get('fetch_options', False)
     self.num_inst = len(self.imdb['data'])
     self.num_rounds = len(self.imdb['data'][0]['question_ind'])
 
@@ -67,8 +66,9 @@ class BatchLoaderMNIST:
     if 'load_gt_layout' in params:
       self.load_gt_layout = params['load_gt_layout']
 
-    self.T_decoder = params['max_dec_len']
-    self.assembler = params['assembler']
+    if self.load_gt_layout:
+      self.T_decoder = params['max_dec_len']
+      self.assembler = params['assembler']
 
     # load the mean of the images
     load_path = params['path'].split('/')[:-1] + ['train_image_mean.npy']
@@ -81,10 +81,12 @@ class BatchLoaderMNIST:
     # read all the images
     images = {}
     print('Reading images..')
-    for datum in progressbar(self.imdb['data']):
+    #TODO: Change this back!
+    for datum in progressbar(self.imdb['data'][::3]):
       img_path = datum['image_path']
+
       if img_path not in images:
-        cur_img = support.load_image(img_path) / 255.
+        cur_img = support.load_image(img_path)
         cur_img = (cur_img - mean_img) / std_img
         images[img_path] = cur_img
 
@@ -185,9 +187,6 @@ class BatchLoaderMNIST:
     actual_batch_size = len(sample_ids)
     batch = {}
 
-    # replace question _Find with _Refer
-    find_module_token = self.assembler.name2idx_dict['_Find']
-    #refer_module_token = self.assembler.name2idx_dict['_Refer']
     eos_token = self.assembler.name2idx_dict['<eos>']
     num_rounds = self.num_rounds
 
@@ -228,7 +227,6 @@ class BatchLoaderMNIST:
     for n in range(len(sample_ids)):
       iminfo = self.imdb['data'][sample_ids[n]]
 
-
       image_path[n] = iminfo['image_path']
       image_feats[n] = self.images[iminfo['image_path']]
 
@@ -263,7 +261,7 @@ class DataReader:
 
   def __init__(self, params):
     imdb_path = params['path']
-    print('Loading imdb from: %s' % params['path'], end='')
+    print('Loading imdb from: %s' % params['path'])
     if imdb_path.endswith('.npy'): imdb = np.load(imdb_path)
     else: raise TypeError('unknown imdb format.')
     self.imdb = imdb[()]
@@ -273,11 +271,10 @@ class DataReader:
     self.prefetch_num = params.get('num_prefetch', 8)
     self.params = params
     copy_args = {'max_enc_len', 'max_dec_len', 'text_vocab_path', 'model',
-                 'fix_ques_layout', 'fix_cap_layout', 'batch_size', 'use_fact',
-                 'supervise_attention', 'answer_list_path', 'generator'}
-    self.params.update({ii:params['args'][ii] for ii in copy_args
+                 'batch_size', 'use_fact', 'answer_list_path', 'generator'}
+    self.params.update({ii: params['args'][ii] for ii in copy_args
                         if ii in params['args'] and
-                      params['args'][ii] is not None})
+                        params['args'][ii] is not None})
 
     # MNIST data loader
     self.batch_loader = BatchLoaderMNIST(self.imdb, self.params)

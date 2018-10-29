@@ -64,7 +64,8 @@ imdb_path_train = os.path.join(root, 'imdb_train.npy')
 
 # assemblers for question and caption programs
 question_assembler = Assembler(args['prog_vocab_path'])
-assemblers = {'ques': question_assembler}
+copy_assembler = Assembler(args['prog_vocab_path'])
+assemblers = {'ques': question_assembler, 'copy': copy_assembler}
 
 # Dataloader for train
 input_dict = {'path': imdb_path_train, 'shuffle': True, 'one_pass': False,
@@ -95,8 +96,20 @@ gradients = solver.compute_gradients(model.get_total_loss())
 gradients = [(tf.clip_by_value(g, -2.0, 2.0), v) if g is not None else (g, v)
              for g, v in gradients]
 solver_op = solver.apply_gradients(gradients)
+
+# Training operation
+# Partial-run can't fetch training operations
+# some workaround to make partial-run work
+update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS);
+
+with tf.control_dependencies([solver_op]):
+  model.set_train_step(tf.constant(0));
+
+with tf.control_dependencies(update_ops):
+  model.set_train_step(tf.constant(0));
+
 # add it to the output
-model.add_solver_op(solver_op)
+# model.add_solver_op(solver_op)
 
 # adjust snapshot to have a time stamp folder
 cur_time = time.strftime('%a-%d%b%y-%X', time.gmtime())

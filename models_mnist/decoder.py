@@ -47,19 +47,13 @@ class AnswerDecoder:
     # decide the source based on train / evaluation
     source = output_pool if params['train_mode'] else inputs
 
-    # concatenate question to both
-    concat_list = []
-    # add program context vector
-    concat_list.append(source['context'])
-    if not self.params['train_mode']:
-      used_inputs.append('context')
-
-    # stack all the vectors
-    stack_vec = tf.concat(concat_list, axis=1)
 
     # a linear to number of choices
-    logits = FC(stack_vec, params['num_choices'], activation_fn=None)
-    outputs['logits'] = logits
+    logits = FC(source['context'], params['num_choices'], activation_fn=None)
+    outputs['ans_logits'] = logits
+    # add program context vector, if not training
+    if not self.params['train_mode']:
+      used_inputs.append('context')
 
     # softmax over the choices
     answer_loss = criterion(logits=logits, labels=inputs['ans_ind'])
@@ -96,8 +90,6 @@ class AnswerDecoder:
 
     # if not training, use previous outputs, else inputs
     if not self.params['train_mode']:
-      feeds = ['ques_enc', 'context', 'hist_enc']
-      feed_dict.update({self.inputs[feed]: output_pool[feed]
-                        for feed in feeds if feed in self.inputs})
+      feed_dict[self.inputs['context']] = output_pool['context']
 
     return feed_dict
