@@ -66,10 +66,12 @@ pip install tqdm
 pip install numpy
 ```
 
-Finally, add the current working directory to the python path, i.e., `PYTHONPATH=.`.
+Finally, add the current working directory to the python path, i.e., 
+`PYTHONPATH=.`.
 
 This repository contains experiments on two datasets: [VisDial v0.9][19]
-and [MNIST Dialog][20]. Instructions to train models on each of these datasets are given below.
+and [MNIST Dialog][20]. Instructions to train models on each of these datasets 
+are given below.
 
 ## Experiments on VisDial v0.9 Dataset
 
@@ -130,14 +132,19 @@ For the third phase, first ensure the following:
 	_Refer
 	<eos>
 	```
-1. Download the visual dialog data files with weak coreference supervision. These files have been obtained using off-the-shelf, text-only coreference resoluton system ([github][10]). They are available here: [train][11] and [val][12].
+1. Download the visual dialog data files with weak coreference supervision.
+These files have been obtained using off-the-shelf, text-only coreference 
+resolution system ([github][10]).
+They are available here: [train][11] and [val][12].
 
 Now, run the script for the third phase:
 ```bash
 scripts/run_preprocess_2.sh
 ```
-This will use the output from the Stanford parser, create programs for our model, extract vocabulary from train dataset, and finally create image-dialog
-database for each split (`train` and `val`) that will be used by our training code.
+This will use the output from the Stanford parser, create programs for our 
+model, extract vocabulary from train dataset, and finally create image-dialog
+database for each split (`train` and `val`) that will be used by our training 
+code.
 
 
 ### Extracting Image Features
@@ -147,10 +154,12 @@ All instructions for preprocessing are now done! We are set to train visual
 dialog models that perform explicit coreference resolution.
 
 ### Training
-To train a model, look at `scripts/run_train.sh` that shows usages of command line flags for the file `exp_vd/train_sl.py`.
+To train a model, look at `scripts/run_train.sh` that shows usages of command 
+line flags for the file `exp_vd/train_sl.py`.
 Information about these flags can be obtained from `exp_vd/options.py`.
 
-Usage for `exp_vd/eval_sl.py` (evaluating a checkpoint) are also given in `scripts/run_train.sh`.
+Usage for `exp_vd/eval_sl.py` (evaluating a checkpoint) are also given in 
+`scripts/run_train.sh`.
 
 
 ## Experiments on MNIST Dialog Dataset
@@ -163,7 +172,8 @@ In order to preprocess MNIST Dialog dataset, simply run the command:
 scripts/run_preprocess_mnist.sh
 ```
 
-As before, this will download the dataset and create image-dialog database (similar to VisDial v0.9 preprocessing phase C).
+As before, this will download the dataset and create image-dialog database 
+(similar to VisDial v0.9 preprocessing phase C).
 
 Finally save the following at: **`data/mnist/vocabulary_layout_mnist.txt`**
 
@@ -182,8 +192,9 @@ _Count
 Done with preprocessing!
 
 ### Training
-Training a model is handled by `exp_mnist/train_sl.py`, while `exp_mnist/eval_sl.py` handles evaluating a specific checkpoint. Commandline options are
-parsed by `exp_mnist/options.py`.
+Training a model is handled by `exp_mnist/train_sl.py`, while 
+`exp_mnist/eval_sl.py` handles evaluating a specific checkpoint.
+Commandline options are parsed by `exp_mnist/options.py`.
 
 Usage of these scripts is demonstrated by the bash script `scripts/run_mnist.sh`.
 
@@ -196,6 +207,8 @@ Usage of these scripts is demonstrated by the bash script `scripts/run_mnist.sh`
 - [x] Additional installation instructions
 - [ ] Include pretrained models
 
+### License
+The license file can be found [here][22]
 
 [1]:https://arxiv.org/abs/1809.01816
 [2]:https://satwikkottur.github.io/
@@ -218,3 +231,4 @@ Usage of these scripts is demonstrated by the bash script `scripts/run_mnist.sh`
 [19]:https://visualdialog.org/datahttp://cvlab.postech.ac.kr/research/attmem/
 [20]:http://cvlab.postech.ac.kr/research/attmem/
 [21]:https://github.com/facebookresearch/corefnmn
+[22]:https://github.com/facebookresearch/corefnmn/blob/master/LICENSE

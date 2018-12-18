@@ -1,3 +1,17 @@
+'''Copyright (c) Facebook, Inc. and its affiliates.
+All rights reserved.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+
+Portions of the source code are from the n2nmn project which
+notice below and in LICENSE.n2nmn in the root directory of
+this source tree.
+
+Copyright (c) 2017, Ronghang Hu
+All rights reserved.
+'''
+
 GPU_ID=$CUDA_VISIBLE_DEVICES
 
 if [ -z "$GPU_ID" ] 

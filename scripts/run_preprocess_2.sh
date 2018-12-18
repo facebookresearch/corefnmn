@@ -1,7 +1,20 @@
+'''Copyright (c) Facebook, Inc. and its affiliates.
+All rights reserved.
+
+This source code is licensed under the license found in the
+LICENSE file in the root directory of this source tree.
+
+Portions of the source code are from the n2nmn project which
+notice below and in LICENSE.n2nmn in the root directory of
+this source tree.
+
+Copyright (c) 2017, Ronghang Hu
+All rights reserved.
+'''
+
 # Bash script to run pre-processing for 
 # CorefNMN: Explicit visual coreference resolution for visual dialog 
 # using neural module networks (part 2/2)
-
 
 DATA_ROOT='data/visdial_v0.9/'
 DTYPES=('train' 'val')
