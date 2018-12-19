@@ -208,7 +208,8 @@ Usage of these scripts is demonstrated by the bash script `scripts/run_mnist.sh`
 - [ ] Include pretrained models
 
 ### License
-The license file can be found [here][22]
+This project is licensed under the license found in the LICENSE file in the root directory of this source tree ([here][22]).
+Portions of the source code are from the n2nmn project which is in LICENSE.n2nmn in the root directory of this source tree ([here][23]).
 
 [1]:https://arxiv.org/abs/1809.01816
 [2]:https://satwikkottur.github.io/
@@ -232,3 +233,4 @@ The license file can be found [here][22]
 [20]:http://cvlab.postech.ac.kr/research/attmem/
 [21]:https://github.com/facebookresearch/corefnmn
 [22]:https://github.com/facebookresearch/corefnmn/blob/master/LICENSE
+[23]:https://github.com/facebookresearch/corefnmn/blob/master/LICENSE.n2nmn
