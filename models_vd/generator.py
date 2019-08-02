@@ -87,6 +87,7 @@ class ProgramGenerator:
       if params['supervise_attention']:
         # get mask out of the program supervision
         mask = tf.cast(inputs['prog_att_gt'] > 0, tf.float32)
+        used_inputs.append('prog_att_gt')
 
         # binary supervision loss
         sum_mask = tf.reduce_sum(mask, 1)

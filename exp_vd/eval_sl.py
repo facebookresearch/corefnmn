@@ -88,12 +88,7 @@ support.pretty_print_dict(args)
 
 # Data files
 root = args['data_root']
-if args['use_refer']:
-  # use refer module
-  file_name = 'imdb/imdb_%s_refermrf_att.npy' % args['test_split']
-else:
-  file_name = 'imdb/imdb_%s.npy' % args['test_split']
-imdb_path_val = os.path.join(root, file_name)
+imdb_path_val = os.path.join(root, 'imdb_%s.npy' % args['test_split'])
 
 # assemblers for question and caption programs
 question_assembler = Assembler(args['prog_vocab_path'])

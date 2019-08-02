@@ -327,11 +327,6 @@ class BatchLoaderVD:
 
     # mask for weights, for history attention
     weight_mask = []
-    # total number of refers for the batch
-    batch_refer_count = 0
-
-    # string based history attention
-    raw_hist_att = []
     for n in range(len(sample_ids)):
       iminfo = self.imdb['data'][sample_ids[n]]
 
@@ -366,19 +361,12 @@ class BatchLoaderVD:
           self.assembler.module_list2tokens(layout, self.T_decoder)
 
       if self.supervise_attention:
-        if self.params['supervise_ref_round']:
-          # for caption
-          weight_chars = []
-          layout = self.imdb['cap_prog'][iminfo['caption_ind']]
-          for token in layout:
-            if token == '_Find': weight_chars.append('c')
-
         num_refers = 0
         for r_id, att in enumerate(iminfo['gt_layout_att']):
           for t_id in range(att.shape[0]):
             index = num_rounds * n + r_id
             span = att[t_id, 1] - att[t_id, 0]
-            # NOTE: number of attention hardwired to be <= 4
+            # NOTE: number of attention timesteps hardwired to be <= 4
             if span > 4 or span == 0: continue
             gt_attention[t_id, att[t_id,0]:att[t_id,1], index] = 1/span
 
@@ -400,15 +388,15 @@ class BatchLoaderVD:
         opt_len[ii] = self.imdb['ans_len'][cur_inds]
       #------------------------------------------------------------------
 
-    hist_att = [jj for ii in weight_mask for jj in ii[-1]]
     batch = {'ques': ques_batch, 'ques_len': ques_len,
+             'ques_id': ques_ids, 'gt_layout': gt_layout_batch,
+             'gt_att' : gt_attention,
              'cap': cap_batch, 'cap_len': cap_len, 'cap_prog': cap_prog,
              'cap_att': cap_gt_att,
              'hist': history, 'hist_len': hist_len, 'ans_in': ans_batch_in,
              'ans_out': ans_batch_out, 'ans_len':ans_len, 'ans': ans_batch,
              'fact': fact, 'fact_len': fact_len,
-             'img_feat': image_feats, 'img_path': image_path,
-             'ques_id': ques_ids, 'gt_layout': gt_layout_batch}
+             'img_feat': image_feats, 'img_path': image_path}
 
     #------------------------------------------------------------------
     # further add options

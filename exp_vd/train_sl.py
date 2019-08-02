@@ -75,10 +75,6 @@ else:
 
 imdb_path_train = os.path.join(root, 'imdb_train.npy')
 
-# if attention supervision is needed
-if args['supervise_attention']:
-  imdb_path_train = imdb_path_train.replace('.npy', '_att.npy')
-
 # assemblers for question and caption programs
 question_assembler = Assembler(args['prog_vocab_path'])
 caption_assembler = Assembler(args['prog_vocab_path'])

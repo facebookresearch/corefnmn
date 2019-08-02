@@ -29,9 +29,9 @@ python -u exp_vd/train_sl.py --gpu_id=$GPU_ID --dataset=$DATASET \
     --decoder='disc' --lstm_size 512
 
 # evaluate a checkpoint (example below)
-# CHECKPOINT='Tue-07Aug18-16:30:21/model_epoch_000.tmodel'
+# CHECKPOINT='checkpoints/Fri-02Aug19-19:42:47/model_epoch_000.tmodel'
 # PYTHONPATH=. python -u exp_vd/eval_sl.py --gpu_id=$GPU_ID \
-#      --checkpoint=$ROOT$CHECKPOINT --test_split='val'
+#      --checkpoint=$CHECKPOINT --test_split='val'
 
 # visualize results (example below)
 #ROOT='/checkpoint/skottur/exp_vd/tfmodel/';

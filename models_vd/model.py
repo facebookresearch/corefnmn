@@ -112,7 +112,8 @@ class CorefNMN:
       # masking out relevant parts for complete supervision
       inputs['ques_super_mask'] = tf.placeholder(tf.float32, size, 'q_mask')
       inputs['cap_super_mask'] = tf.placeholder(tf.float32, size, 'c_mask')
-      inputs['supervise_switch'] = tf.placeholder(tf.bool, 'supervise_switch')
+      inputs['supervise_switch'] = tf.placeholder(tf.bool, [],
+                                                  'supervise_switch')
 
     # tie encoder and decoder
     size = [params['num_layers'], None, params['lstm_size']]
