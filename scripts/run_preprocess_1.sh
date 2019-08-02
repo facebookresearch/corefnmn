@@ -35,7 +35,7 @@ unzip ${DATA_ROOT}${TRAIN_DATA?} -d $DATA_ROOT
 unzip ${DATA_ROOT}${VAL_DATA?} -d $DATA_ROOT
 
 # preprocess
-python scripts/dataset_to_text.py --data_file=${DATA_ROOT}"visdial_0.9_train.json"
-python scripts/dataset_to_text.py --data_file=${DATA_ROOT}"visdial_0.9_val.json"
+python util/dataset_to_text.py --data_file=${DATA_ROOT}"visdial_0.9_train.json"
+python util/dataset_to_text.py --data_file=${DATA_ROOT}"visdial_0.9_val.json"
 
 echo 'Proceed with running Stanford parser step. See README.md for details.'
