@@ -30,12 +30,10 @@ python -u exp_vd/train_sl.py --gpu_id=$GPU_ID --dataset=$DATASET \
 
 # evaluate a checkpoint (example below)
 # CHECKPOINT='checkpoints/Fri-02Aug19-19:42:47/model_epoch_000.tmodel'
-# PYTHONPATH=. python -u exp_vd/eval_sl.py --gpu_id=$GPU_ID \
+# python -u exp_vd/eval_sl.py --gpu_id=$GPU_ID \
 #      --checkpoint=$CHECKPOINT --test_split='val'
 
 # visualize results (example below)
-#ROOT='/checkpoint/skottur/exp_vd/tfmodel/';
-###CHECKPOINT='Thu-02Nov17-18:55:08/model_epoch_005.tmodel'; LABEL=''
-#CHECKPOINT='Thu-16Nov17-23:20:12/model_epoch_015.tmodel'
-#PYTHONPATH=. python -u exp_vd/visualize_sl.py -gpuID $GPU_ID \
-#              -checkpoint $ROOT$CHECKPOINT -batchSize 1 -testSplit 'train'
+# CHECKPOINT='checkpoints/Fri-02Aug19-19:42:47/model_epoch_000.tmodel'
+# python -u exp_vd/visualize_sl.py --gpu_id $GPU_ID \
+#     --checkpoint=$CHECKPOINT --batch_size 1 --test_split='train'

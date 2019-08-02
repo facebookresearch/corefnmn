@@ -1,4 +1,4 @@
-"""Copyright (c) Facebook, Inc. and its affiliates.
+r"""Copyright (c) Facebook, Inc. and its affiliates.
 All rights reserved.
 
 This source code is licensed under the license found in the
@@ -10,121 +10,134 @@ this source tree.
 
 Copyright (c) 2017, Ronghang Hu
 All rights reserved.
+
+Script to visualize trained Visual Dialog model using supervised learning.
+
+Visualizes visual dialog model that performs explicit visual coreference resolution
+using neural module networks. Additional details are in the paper:
+  Visual Coreference Resolution in Visual Dialog using Neural Module Networks
+  Satwik Kottur, José M. F. Moura, Devi Parikh, Dhruv Batra, Marcus Rohrbach
+  European Conference on Computer Vision (ECCV), 2018
+
+Usage:
+  python -u exp_vd/visualize_sl.py --gpu_id=0 --test_split='val' \
+       --checkpoint='checkpoints/model_epoch_005.tmodel' --batch_size 1
 """
-# script to visualize intermediate outputs from a trained checkpoint
+
 from __future__ import absolute_import, division, print_function
 
+import argparse
+import json
+import os
+import sys
+import time
+from tqdm import tqdm as progressbar
 import numpy as np
 import tensorflow as tf
-import pdb, sys, argparse, os, json
-from time import gmtime, strftime
-from tqdm import tqdm as progressbar
+
 from exp_vd import options
-from util import support
 
-# read command line options
-parser = argparse.ArgumentParser();
-parser.add_argument('-checkpoint', required=True, \
-                            help='Checkpoint to load the models');
-parser.add_argument('-batchSize', type=int, default=10, \
-                            help='Batch size for evaluation / visualization');
-parser.add_argument('-testSplit', default='val', \
-                            help='Which split to run evaluation on');
-parser.add_argument('-gpuID', type=int, default=0)
+# Read command line options.
+parser = argparse.ArgumentParser()
+parser.add_argument('--checkpoint', required=True, help="Checkpoint to load")
+parser.add_argument('--batch_size', type=int, default=10, 
+                    help='Batch size for visualization')
+parser.add_argument('--test_split', default='val',
+                    help='Split to run visualization')
+parser.add_argument('--gpu_id', type=int, default=0)
 
-try: args = vars(parser.parse_args());
-except (IOError) as msg: parser.error(str(msg));
+try:
+  args = vars(parser.parse_args())
+except (IOError) as msg:
+  parser.error(str(msg))
 
-# set the cuda environment variable for the gpu to use
-if args['gpuID'] >= 0:
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(args['gpuID']);
-    print(os.environ['CUDA_VISIBLE_DEVICES'])
-else: os.environ['CUDA_VISIBLE_DEVICES'] = '';
+# Set the cuda environment variable for the gpu to use.
+gpu_id = '' if args['gpu_id'] < 0 else str(args['gpu_id'])
+print('Using GPU id: %s' % gpu_id)
+os.environ['CUDA_VISIBLE_DEVICES'] = gpu_id
 
 # Start the session BEFORE importing tensorflow_fold
 # to avoid taking up all GPU memory
-sess = tf.Session(config=tf.ConfigProto(
-    gpu_options=tf.GPUOptions(allow_growth=True),
-    allow_soft_placement=False, log_device_placement=False))
+tf_config = tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True),
+                           allow_soft_placement=False,
+                           log_device_placement=False)
+sess = tf.Session(config=tf_config)
 
 from models_vd.assembler import Assembler
-from models_vd.model import NMN3Model
-from loaders_vd.data_reader import DataReader
-from util.metrics import computeMetrics, ExpSmoothing
+from models_vd.model import CorefNMN
+from loader_vd.data_reader import DataReader
+from util import metrics
+from util import support
 
 # setting random seeds
-np.random.seed(1234);
-tf.set_random_seed(1234);
+np.random.seed(1234)
+tf.set_random_seed(1234)
 
 # read the train args from checkpoint
-paramPath = args['checkpoint'].replace('.tmodel', '_params.json');
-with open(paramPath, 'r') as fileId: savedArgs = json.load(fileId);
-savedArgs.update(args);
-args = savedArgs;
-args['preloadFeats'] = False;
-args['superviseAttention'] = False;
+param_path = args['checkpoint'].replace('.tmodel', '_params.json')
+with open(param_path, 'r') as file_id:
+  saved_args = json.load(file_id)
+
+saved_args.update(args)
+args = saved_args
+args['preload_feats'] = False
+args['supervise_attention'] = False
 print('Current model: ' + args['model'])
+support.pretty_print_dict(args)
 
 # Data files
-imdbPathVal = os.path.join(args['dataRoot'],'imdb/imdb_%s.npy'%args['testSplit']);
+root = args['data_root']
+imdb_path_val = os.path.join(root, 'imdb_%s.npy' % args['test_split'])
 
-# assembler
-assembler = Assembler(args['progVocabPath']);
+# assemblers for question and caption programs
+question_assembler = Assembler(args['prog_vocab_path'])
+caption_assembler = Assembler(args['prog_vocab_path'])
+assemblers = {'ques': question_assembler, 'cap': caption_assembler}
 
 # dataloader for val
-inputDict = {'path':imdbPathVal, 'shuffle':False, 'onePass':True, 'args':args,\
-             'assembler': assembler, 'useCount': False, 'fetchOptions': True};
-# NOTE: remove this
-if args['testSplit'] == 'train':
-    inputDict['args']['superviseAttention'] = True;
-    inputDict['path'] = os.path.join(args['dataRoot'], \
-                                        'imdb/imdb_%s_refermrf_att.npy' \
-                                                           % args['testSplit']);
-valLoader = DataReader(inputDict);
+input_dict = {'path': imdb_path_val, 'shuffle': False, 'one_pass': True,
+              'args': args, 'assembler': question_assembler,
+              'fetch_options': True}
+val_loader = DataReader(input_dict)
 
-# The model for training
-evalParams = args.copy();
-evalParams['useGTProg'] = False; # for training
-evalParams['encDropout'] = False;
-evalParams['decDropout'] = False;
-evalParams['decSampling'] = False; # do not sample, take argmax
+# model for training
+eval_params = args.copy()
+eval_params['use_gt_prog'] = False # for training
+eval_params['enc_dropout'] = False
+eval_params['dec_dropout'] = False
+eval_params['dec_sampling'] = False # do not sample, take argmax
 
 # for models trained later
-if 'numRounds' not in evalParams:
-    evalParams['numRounds'] = valLoader.batchLoader.numRounds;
+if 'num_rounds' not in eval_params:
+  eval_params['num_rounds'] = val_loader.batch_loader.num_rounds
 
 # model for evaluation
 # create another assembler of caption
-assemblers = {'ques': assembler, 'cap': Assembler(args['progVocabPath'])};
-model = NMN3Model(evalParams, assemblers);
+model = CorefNMN(eval_params, assemblers)
 
 # Load snapshot
 print('Loading checkpoint from: %s' % args['checkpoint'])
-snapshot_saver = tf.train.Saver(max_to_keep=None);  # keep all snapshots
-snapshot_saver.restore(sess, args['checkpoint']);
+snapshot_saver = tf.train.Saver(max_to_keep=None)  # keep all snapshots
+snapshot_saver.restore(sess, args['checkpoint'])
 
-print('Evaluating on %s' % args['testSplit'])
-ranks = []; matches = [];
-totalIter = int(valLoader.batchLoader.numInst / args['batchSize']);
-maxIters = 100; curIter = 0;
-toSave = {'output': [], 'batch': []};
+print('Evaluating on %s' % args['test_split'])
+ranks = []
+matches = []
+total_iter = int(val_loader.batch_loader.num_inst / args['batch_size'])
+max_iters = 100
+cur_iter = 0
+to_save = {'output': [], 'batch': []}
 
-for batch in progressbar(valLoader.batches(), total=totalIter):
-    _, outputs = model.runVisualizeIteration(batch, sess);
+for batch in progressbar(val_loader.batches(), total=total_iter):
+  _, outputs = model.run_visualize_iteration(batch, sess)
 
-    toSave['output'].append(outputs);
-    toSave['batch'].append(batch);
+  to_save['output'].append(outputs)
+  to_save['batch'].append(batch)
 
-    # debug -- also compute the ranks during visualization
-    #ranks.append(batchRanks);
+  cur_iter += 1
+  if cur_iter >= max_iters: break
 
-    curIter += 1;
-    if curIter >= maxIters: break;
-
-# save the output + batch
-batchPath = args['checkpoint'] + '.100_batches.npy';
-print('Printing the batches: ' + batchPath)
-support.saveBatch(toSave, batchPath);
-
-# debug evaluate
-#metrics = computeMetrics(np.hstack(ranks));
+# Save the output + batch
+batch_path = args['checkpoint'] + '.100_batches.npy'
+print('Printing the batches: ' + batch_path)
+support.save_batch(to_save, batch_path)

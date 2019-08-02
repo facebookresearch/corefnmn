@@ -11,9 +11,9 @@ this source tree.
 Copyright (c) 2017, Ronghang Hu
 All rights reserved.
 
-Script to train Visual Dialog model using supervised learning.
+Script to evaluate trained Visual Dialog model using supervised learning.
 
-Trains visual dialog model that performs explicit visual coreference resolution
+Evaluates visual dialog model that performs explicit visual coreference resolution
 using neural module networks. Additional details are in the paper:
   Visual Coreference Resolution in Visual Dialog using Neural Module Networks
   Satwik Kottur, José M. F. Moura, Devi Parikh, Dhruv Batra, Marcus Rohrbach
@@ -37,11 +37,11 @@ import tensorflow as tf
 
 from exp_vd import options
 
-# read command line options
+# Read command line options.
 parser = argparse.ArgumentParser()
-parser.add_argument('--checkpoint', required=True)
-parser.add_argument('--test_split', default='val', \
-                    help='Which split to run evaluation on')
+parser.add_argument('--checkpoint', required=True, help="Checkpoint to load")
+parser.add_argument('--test_split', default='val',
+                    help='Split to run evaluation')
 parser.add_argument('--gpu_id', type=int, default=0)
 
 try:
@@ -115,7 +115,6 @@ if 'num_rounds' not in eval_params:
 # model for evaluation
 # create another assembler of caption
 model = CorefNMN(eval_params, assemblers)
-model.setup_training()
 
 # Load snapshot
 print('Loading checkpoint from: %s' % args['checkpoint'])

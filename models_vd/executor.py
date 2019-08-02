@@ -475,19 +475,18 @@ class ProgramExecutor:
           sep_wts.append((r_id, weights[st:end], wt_labels))
           weight_ind += num_reuse
 
-        if self.params['reuse_refer'] and cur_module == '_Refer':
-          wt_labels.append('Q%d_%d' % (r_id, t_id))
-          num_reuse += 1
-
         if cur_module == '_Find':
           wt_labels.append('Q%d_%d' % (r_id, t_id))
           num_reuse += 1
 
     # do not assert if baseline
-    if 'baseline' in self.params['model']: return sep_att, sep_wts
+    if 'baseline' in self.params['model']:
+      return sep_att, sep_wts
 
-    for arg in sep_wts: assert(abs(np.sum(arg[1]) - 1.0) < 1e-5)
+    for arg in sep_wts:
+      assert(abs(np.sum(arg[1]) - 1.0) < 1e-5)
 
+    # Sanity checks to ensure Refer is not doing anything weird.
     assert(weight_ind == weights.shape[0])
     assert(att_ind == att.shape[0])
 
