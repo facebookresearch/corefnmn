@@ -17,7 +17,7 @@ import sys
 import numpy as np
 
 class HTML():
-  def __init__(self, cols, header_file='util/jquery_header.html'):
+  def __init__(self, cols, header_file='vis/jquery_header.html'):
     self.template = '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"+\
             "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">' +\
             '<html xmlns="http://www.w3.org/1999/xhtml"><head>'
@@ -31,8 +31,8 @@ class HTML():
             +'table#t01 th{background-color:black;color:white}'+\
             '</style>'
     self.colors = ['maroon', 'red', 'purple', 'fuchsia',
-            'green', 'lime', 'olive', 'yellow',
-            'navy', 'blue', 'teal', 'aqua', 'orange']
+                   'green', 'lime', 'olive', 'yellow',
+                   'navy', 'blue', 'teal', 'aqua', 'orange']
 
     with open(header_file, 'r') as file_id: self.template += file_id.read()
 

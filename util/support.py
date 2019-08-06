@@ -39,25 +39,24 @@ def last_relevant(output, length):
 # source: 
 # github.com/abhshkdz/neural-vqa-attention/blob/master/attention_visualization.ipynb
 def get_blend_map(img, att_map, blur=True, overlap=True):
-  #att_map = softmax(att_map)
-  #print(np.min(att_map), np.max(att_map))
   # range it from -1 to 1
-  #att_map -= att_map.min()
+  att_map -= att_map.min()
   if att_map.max() != 0: att_map /= att_map.max()
   image_size = img.shape[:2]
   att_map = transform.resize(att_map, image_size, order = 3)
   if blur:
-    att_map = filters.gaussian(att_map, 0.05*max(img.shape))
+    att_map = filters.gaussian(att_map, 0.05 * max(img.shape))
     #att_map -= att_map.min()
     att_map /= att_map.max()
   cmap = plt.get_cmap('jet')
   att_map_v = cmap(att_map)
   att_map_v = np.delete(att_map_v, 3, 2)
   att_map_v *= 255
+
   if overlap:
     #vis_im = att_map_v * att_map + (1-att_reshaped)*all_white
     #vis_im = att_map_v*im + (1-att_reshaped)*all_white
-    att_map = 1*(1-att_map**0.7).reshape(att_map.shape + (1,))*img \
+    att_map = 1 * (1 - att_map**0.7).reshape(att_map.shape + (1,)) * img \
             + (att_map**0.7).reshape(image_size + (1,)) * att_map_v
   return att_map
 
@@ -105,10 +104,6 @@ def interpolate_attention(im, att):
 
 
 # shuffling data for image - caption to train alignment
-#class Shuffler:
-#    def __init__(self, batch_size):
-#        assert batch_size > 1, 'Batch size should be greater than 1'
-#        self.batch_size = batch_size
 def shuffle(arg_list, batch_size):
   # get the batch size
   #batch_size = arg_list[0].shape[0] // 10
@@ -152,3 +147,16 @@ def launch_evaluation_job(output_path, checkpoint):
     file_id.write(template % (output_path, checkpoint));
 
   subprocess.call('sbatch %s' % temp_path, shell=True);
+
+
+def save_batch(batch, save_path, terminate=False):
+  """Saves a batch to visualize or debug.
+
+  Args:
+    batch: List of intermediate outputs (see visualize_sl.py for example)
+    save_path: Path to save the batch
+    terminate: In debug mode, terminate the program
+  """
+  print('Saved batch: {0}'.format(save_path))
+  np.save(save_path, batch);
+  assert not terminate, 'Program terminated!'

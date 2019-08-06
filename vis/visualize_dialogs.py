@@ -36,11 +36,12 @@ from util import support
 from tqdm import tqdm as progressbar
 from skimage import io, transform
 
+
 def main(args):
   titles = ['Image', 'Answers', 'Predictions', 'Modules', 'Attention']
 
   # load the batch
-  data = np.load(load_path)[()]
+  data = np.load(args.batch_path)[()]
   batch, outputs = data['batch'], data['output']
 
   # load dictionary
@@ -67,15 +68,22 @@ def main(args):
   # saving intermediate outputs
   end_prog_token = word2ind_prog['<eos>']
   server_save = './attention/%d_%d_%d_%d.png'
-  local_save = os.path.join(root, './attention/%d_%d_%d_%d.png')
+  local_save = os.path.join(args.image_save_root, 'attention/%d_%d_%d_%d.png')
+
+  # Create folders.
+  os.makedirs(args.image_save_root, exist_ok=True)
+  os.makedirs(os.path.join(args.image_save_root, 'attention'), exist_ok=True)
 
   for ii in progressbar(range(args.num_examples)):
-    # image
+    # Read image.
     img_name = '/'.join(batch[ii]['img_path'][0].split('/')[-2:])
-    # read image
-    image = io.imread(img_template + img_name)
+    image = io.imread(os.path.join(args.image_load_root, img_name))
+    # Deal with black and white images.
+    if len(image.shape) < 3:
+      image = np.expand_dims(image, -1)
+      image = np.tile(image, [1, 1, 3])
 
-    # caption
+    # Caption.
     if batch[ii]['cap_len'].ndim == 2:
       cap_len = batch[ii]['cap_len'][0]
       cap_string = stringify(batch[ii]['cap'][0, :cap_len])
@@ -83,7 +91,7 @@ def main(args):
       cap_len = batch[ii]['cap_len'][0]
       cap_string = stringify(batch[ii]['cap'][0, :cap_len])
 
-    span_content = page.link_image(img_template + img_name, cap_string, 400)
+    span_content = page.link_image('coco_images/' + img_name, cap_string, 400)
     # decide length based on first appearance of 14 <eos>
     if 'pred_tokens_cap' in outputs[ii]:
       caption_prog = outputs[ii]['pred_tokens_cap']
@@ -197,9 +205,9 @@ def main(args):
 
     # Add the span row
     page.add_spanning_row(span_content, ques_content)
-
   # render page and save
   page.save_page(args.save_path)
+
 
 if __name__ == '__main__':
   # read command line arguments
@@ -214,7 +222,9 @@ if __name__ == '__main__':
                       help='Program vocabulary to decode program outputs')
   parser.add_argument('--save_path', default='vis/sample_run_examples.html',
                       help='Save the HTML file that visualizes examples')
-  parser.add_argument('--image_root', default='vis/images/',
+  parser.add_argument('--image_load_root', default='vis/coco_images/',
+                      help='Path to the COCO images')
+  parser.add_argument('--image_save_root', default='vis/images/',
                       help='Path to the images to load in HTML')
 
   parser.add_argument('--num_examples', default=50, type=int,

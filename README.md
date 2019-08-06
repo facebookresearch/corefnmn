@@ -201,7 +201,7 @@ Usage of these scripts is demonstrated by the bash script `scripts/run_mnist.sh`
 
 ### Future Releases
   
-- [ ] Visualization scripts
+- [x] Visualization scripts
 - [x] MNIST Experiments
 - [ ] Detailed Doc Strings
 - [x] Additional installation instructions

@@ -45,6 +45,7 @@ parser.add_argument('--batch_size', type=int, default=10,
 parser.add_argument('--test_split', default='val',
                     help='Split to run visualization')
 parser.add_argument('--gpu_id', type=int, default=0)
+parser.add_argument('--num_instances', type=int, default=50)
 
 try:
   args = vars(parser.parse_args())
@@ -123,21 +124,20 @@ snapshot_saver.restore(sess, args['checkpoint'])
 print('Evaluating on %s' % args['test_split'])
 ranks = []
 matches = []
-total_iter = int(val_loader.batch_loader.num_inst / args['batch_size'])
-max_iters = 100
 cur_iter = 0
 to_save = {'output': [], 'batch': []}
 
-for batch in progressbar(val_loader.batches(), total=total_iter):
+for batch in progressbar(val_loader.batches(), total=args['num_instances']):
   _, outputs = model.run_visualize_iteration(batch, sess)
 
   to_save['output'].append(outputs)
   to_save['batch'].append(batch)
 
   cur_iter += 1
-  if cur_iter >= max_iters: break
+  if cur_iter >= args['num_instances']:
+    break
 
 # Save the output + batch
-batch_path = args['checkpoint'] + '.100_batches.npy'
-print('Printing the batches: ' + batch_path)
+batch_path = '{0}.{1}_batches.npy'.format(args['checkpoint'],
+                                          args['num_instances'])
 support.save_batch(to_save, batch_path)
