@@ -221,8 +221,8 @@ Portions of the source code are from the n2nmn project which is in LICENSE.n2nmn
 [8]:https://s3.amazonaws.com/visual-dialog/data/v0.9/visdial_params.json
 [9]:https://nlp.stanford.edu/software/lex-parser.shtml#Download
 [10]:https://github.com/huggingface/neuralcoref
-[11]:http://users.ece.cmu.edu/~skottur/datasets/visdial_v0.9/visdial_0.9_train_coref_supervise.json
-[12]:http://users.ece.cmu.edu/~skottur/datasets/visdial_v0.9/visdial_0.9_val_coref_supervise.json
+[11]:https://drive.google.com/file/d/1prWRr41X7NgUea6nSkf9OJBzWH14pDPg/view?usp=sharing
+[12]:https://drive.google.com/file/d/1Riux6bpU9423aqgK4zW9dyWurUk6HsOT/view?usp=sharing
 [13]:https://github.com/ronghanghu/n2nmn
 [14]:https://github.com/ronghanghu/n2nmn#download-and-preprocess-the-data-1
 [15]:https://arxiv.org/pdf/1809.01816.pdf
