@@ -137,6 +137,13 @@ These files have been obtained using off-the-shelf, text-only coreference
 resolution system ([github][10]).
 They are available here: [train][11] and [val][12].
 
+**NOTE:** To extract weak coreferences on your own dataset, please install 
+v2.0 of neuralcoref repository ([here][24]) from source. 
+For v2.0,`spaCy==2.1.3` has only been tested.
+Run `util/extract_coreference_supervision.py` on files in the VisDial format 
+to extract weak coreference supervision.
+
+
 Now, run the script for the third phase:
 ```bash
 scripts/run_preprocess_2.sh
@@ -234,3 +241,4 @@ Portions of the source code are from the n2nmn project which is in LICENSE.n2nmn
 [21]:https://github.com/facebookresearch/corefnmn
 [22]:https://github.com/facebookresearch/corefnmn/blob/master/LICENSE
 [23]:https://github.com/facebookresearch/corefnmn/blob/master/LICENSE.n2nmn
+[24]:https://github.com/huggingface/neuralcoref/releases/tag/0.2
